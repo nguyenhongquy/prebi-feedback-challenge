@@ -42,13 +42,14 @@ export function VoteForm({
 
   return (
     <form
+      aria-describedby="vote-instructions"
       className="vote-form"
       onSubmit={(event) => {
         event.preventDefault()
-        if (canSubmit) onSubmit()
+        if (canSubmit && !isSubmitting) onSubmit()
       }}
     >
-      <fieldset className="vote-question">
+      <fieldset className="vote-question" disabled={isSubmitting}>
         <legend>
           <span className="question-number">1</span>
           Welches Feedback stammt von Lehrenden?
@@ -69,7 +70,7 @@ export function VoteForm({
         </div>
       </fieldset>
 
-      <fieldset className="vote-question">
+      <fieldset className="vote-question" disabled={isSubmitting}>
         <legend>
           <span className="question-number">2</span>
           Welches Feedback findest du hilfreicher?
@@ -91,6 +92,7 @@ export function VoteForm({
       </fieldset>
 
       <button
+        aria-busy={isSubmitting}
         className="button button-primary"
         disabled={!canSubmit || isSubmitting}
         type="submit"
@@ -98,7 +100,13 @@ export function VoteForm({
         {isSubmitting ? 'Wird ausgewertet …' : 'Antworten ansehen'}
         {!isSubmitting && <span aria-hidden="true">→</span>}
       </button>
-      <p className="form-hint">Beide Antworten sind erforderlich. Es gibt kein Richtig oder Falsch.</p>
+      <p aria-live="polite" className="submission-status" role="status">
+        {isSubmitting ? 'Deine Antworten werden ausgewertet. Bitte warte kurz.' : ''}
+      </p>
+      <p className="form-hint" id="vote-instructions">
+        Bitte beantworte beide Fragen. Bei der Herkunft gibt es eine Auflösung –
+        welche Rückmeldung hilfreicher ist, entscheidest du.
+      </p>
     </form>
   )
 }

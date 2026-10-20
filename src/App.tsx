@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CaseScreen } from './components/CaseScreen'
 import { CompletionScreen } from './components/CompletionScreen'
 import { ResultsScreen } from './components/ResultsScreen'
@@ -32,13 +32,33 @@ function App() {
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const mainRef = useRef<HTMLElement>(null)
+  const errorRef = useRef<HTMLDivElement>(null)
+  const requestVersion = useRef(0)
+  const submissionPending = useRef(false)
+
+  useEffect(() => {
+    if (isLoading) return
+    const heading = mainRef.current?.querySelector('h1')
+    if (heading) {
+      heading.tabIndex = -1
+      heading.focus({ preventScroll: true })
+      window.scrollTo({ top: 0, behavior: 'instant' })
+    }
+  }, [screen, isLoading, round?.id])
+
+  useEffect(() => {
+    if (error) errorRef.current?.focus()
+  }, [error])
 
   async function beginRound() {
+    const version = ++requestVersion.current
     setIsLoading(true)
     setError(null)
 
     try {
       const nextRound = await challengeApi.startRound(playedCaseIds)
+      if (version !== requestVersion.current) return
 
       if (!nextRound) {
         setScreen('complete')
@@ -54,39 +74,51 @@ function App() {
       setResult(null)
       setScreen('case')
     } catch (cause) {
+      if (version !== requestVersion.current) return
       setError(
         cause instanceof Error
           ? cause.message
           : 'Die Runde konnte nicht gestartet werden. Bitte versuche es erneut.',
       )
     } finally {
-      setIsLoading(false)
+      if (version === requestVersion.current) setIsLoading(false)
     }
   }
 
   async function submitVote() {
-    if (!round || !isVoteComplete(vote) || isSubmitting || result) return
+    if (!round || !isVoteComplete(vote) || submissionPending.current || result) return
 
+    const version = ++requestVersion.current
+    submissionPending.current = true
     setIsSubmitting(true)
     setError(null)
 
     try {
       const submittedResult = await challengeApi.submitVote(round.id, vote)
+      if (version !== requestVersion.current) return
       setResult(submittedResult)
       setScreen('reveal')
     } catch (cause) {
+      if (version !== requestVersion.current) return
       setError(
         cause instanceof Error
           ? cause.message
           : 'Deine Antworten konnten nicht übermittelt werden. Bitte versuche es erneut.',
       )
     } finally {
-      setIsSubmitting(false)
+      if (version === requestVersion.current) {
+        submissionPending.current = false
+        setIsSubmitting(false)
+      }
     }
   }
 
   function resetVisitor() {
     resetSessionProgress(window.sessionStorage)
+    requestVersion.current += 1
+    submissionPending.current = false
+    setIsLoading(false)
+    setIsSubmitting(false)
     setPlayedCaseIds([])
     setRound(null)
     setVote(null)
@@ -113,13 +145,18 @@ function App() {
         )}
       </header>
 
-      <main id="main-content">
+      <main id="main-content" ref={mainRef}>
         {error && (
-          <div className="error-banner" role="alert">
+          <div className="error-banner" ref={errorRef} role="alert" tabIndex={-1}>
             <span>{error}</span>
             <button
               className="text-button"
-              onClick={() => setError(null)}
+              onClick={() => {
+                setError(null)
+                mainRef.current?.querySelector<HTMLButtonElement>(
+                  screen === 'case' ? '.vote-form button[type="submit"]' : '.button-primary',
+                )?.focus()
+              }}
               type="button"
             >
               Schließen

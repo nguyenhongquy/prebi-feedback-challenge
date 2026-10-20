@@ -44,6 +44,11 @@ export function CaseScreen({
         <span className="no-timer">Kein Zeitlimit</span>
       </div>
 
+      <nav aria-label="Feedback vergleichen" className="feedback-navigation">
+        <a href="#feedback-card-A">Zu Feedback A</a>
+        <a href="#feedback-card-B">Zu Feedback B</a>
+      </nav>
+
       <div className="feedback-grid">
         <FeedbackCard label="A" paragraphs={round.feedbackA} />
         <FeedbackCard label="B" paragraphs={round.feedbackB} />

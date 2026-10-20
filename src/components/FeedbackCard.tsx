@@ -5,7 +5,12 @@ interface FeedbackCardProps {
 
 export function FeedbackCard({ label, paragraphs }: FeedbackCardProps) {
   return (
-    <article aria-labelledby={`feedback-${label}`} className="feedback-card">
+    <article
+      aria-labelledby={`feedback-${label}`}
+      className="feedback-card"
+      id={`feedback-card-${label}`}
+      tabIndex={-1}
+    >
       <div className="feedback-card-header">
         <span aria-hidden="true" className={`feedback-letter feedback-letter-${label.toLowerCase()}`}>
           {label}

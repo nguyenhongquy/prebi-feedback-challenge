@@ -94,6 +94,26 @@ describe('MockChallengeApi', () => {
 })
 
 describe('session progress', () => {
+  it('does not clear progress in another browser session', () => {
+    function createStorage(): SessionStorageLike {
+      const values = new Map<string, string>()
+      return {
+        getItem: (key) => values.get(key) ?? null,
+        setItem: (key, value) => { values.set(key, value) },
+        removeItem: (key) => { values.delete(key) },
+      }
+    }
+    const firstSession = createStorage()
+    const secondSession = createStorage()
+    savePlayedCaseIds(firstSession, ['seminar-gespraech'])
+    savePlayedCaseIds(secondSession, ['stundenbeginn'])
+
+    resetSessionProgress(firstSession)
+
+    expect(loadPlayedCaseIds(firstSession)).toEqual([])
+    expect(loadPlayedCaseIds(secondSession)).toEqual(['stundenbeginn'])
+  })
+
   it('clears the current visitor progress on reset', () => {
     const values = new Map<string, string>()
     const storage: SessionStorageLike = {

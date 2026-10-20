@@ -19,12 +19,31 @@ Vite zeigt anschließend die lokale Adresse im Terminal an.
 
 ```sh
 npm test
+npm run lint
+npx tsc -b
 npm run build
 ```
 
 `npm test` prüft die zufällige Fall- und Feedback-Reihenfolge, die Auflösung,
 die Vermeidung bereits gespielter Fälle, den Schutz vor doppelter Abstimmung
 und das Zurücksetzen des Sitzungsfortschritts.
+Zusätzliche Komponententests prüfen die Feedback-Sprunglinks, den Abstimmungs-
+und Ladezustand, die Auflösung sowie beschriftete Demo-Diagramme.
+
+### Mobile und Tastatur manuell prüfen
+
+- Bei 375 und 390 Pixel Breite: Beide Feedback-Karten über „Zu Feedback A/B“
+  ansteuern, vollständig lesen und beide Fragen beantworten. Erst dann ist
+  „Antworten ansehen“ aktiv. Bei reduzierter Bewegung erfolgt der Sprung ohne
+  sanftes Scrollen.
+- Bei 768 und 1280 Pixel Breite: Karten und Diagramme nebeneinander, ohne
+  horizontalen Überlauf, prüfen.
+- Mit Tab und Enter navigieren. Nach Bildschirmwechseln erhält die neue
+  Überschrift den Fokus; nach einem Übermittlungsfehler die Fehlermeldung.
+  Antworten bleiben bei Fehlern erhalten und können erneut gesendet werden.
+- Auflösung, Demodaten, „Noch eine Runde?“ und „Fertig“ prüfen.
+  „Neue Person / Zurücksetzen“ muss zum Start zurückführen und Antworten sowie
+  Fallhistorie nur in diesem Browser-Tab löschen, auch während einer Anfrage.
 
 ## Phase 1: lokaler Prototyp
 
