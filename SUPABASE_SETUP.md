@@ -5,8 +5,8 @@
 The project owner reported successful hosted Edge Function integration tests on
 2026-10-20 (see the recorded results below). This cleanup has not been deployed
 or independently tested against that project by the assistant. No credentials
-were accessed or hosted data/settings changed during cleanup. GitHub Pages
-deployment is not configured here.
+were accessed or hosted data/settings changed during cleanup. A manual GitHub Pages
+workflow is now prepared in source, but has not been committed, enabled or run.
 
 Before executing any hosted step below, the project owner must review and approve
 it. Keep the Data API and automatic table exposure **disabled**. Do not run
@@ -333,8 +333,82 @@ npm run dev
 npm run build
 ```
 
-The GitHub Pages base remains `/prebi-feedback-challenge/`. **Do not deploy to
-GitHub Pages yet.**
+The GitHub Pages base remains `/prebi-feedback-challenge/`. Do not deploy until the
+project owner approves the frontend release and completes the checklist below.
+
+### GitHub Pages frontend deployment
+
+Target: `https://nguyenhongquy.github.io/prebi-feedback-challenge/`.
+Read-only inspection on 2026-10-20 found no existing workflows, no repository
+variables and `has_pages=false`; the Pages endpoint returned 404. No GitHub
+settings were changed.
+
+[pages.yml](./.github/workflows/pages.yml) is deliberately **manual-only**
+(`workflow_dispatch`) and restricted to `main`. Pushes, PRs and merges do not
+trigger it; selecting the feature branch skips the build. After review, commit,
+push and merge each require owner approval before this workflow can be used from
+the default branch. It does not deploy or migrate Supabase.
+
+#### One-time manual settings (project owner approval required)
+
+1. In GitHub **Settings → Secrets and variables → Actions → Variables**, create
+   these **repository variables**, not database secrets:
+
+   | Repository variable | Public build-time value |
+   |---|---|
+   | `VITE_SUPABASE_URL` | Project's HTTPS Supabase origin, no credentials/path/query |
+   | `VITE_SUPABASE_PUBLISHABLE_KEY` | Project's `sb_publishable_…` key |
+
+   The workflow explicitly sets `VITE_API_MODE=supabase`. Both variables are public
+   frontend configuration and will appear in the downloadable JavaScript.
+   Never use a database URL/password, `sb_secret_…`, service-role JWT or account
+   token here. Validation rejects missing/malformed configuration before building
+   without printing the supplied values. Do not create real `.env` files in CI.
+2. In **Settings → Pages → Build and deployment**, choose **GitHub Actions**.
+   Do not use branch-based publication of the repository. In repository Actions
+   settings, permit the official checkout/setup-node and Pages actions used by
+   the workflow.
+3. Review the `github-pages` environment. Restrict deployment branches to `main`
+   and configure required reviewers where available. The deploy job requests
+   only `pages: write` and `id-token: write`; the build uses `contents: read`.
+   No personal access token is needed.
+4. Verify hosted `PREBI_ALLOWED_ORIGINS` includes exactly
+   `https://nguyenhongquy.github.io`, **without a trailing slash or repository
+   path**. The handler checks exact origin membership, reflects only an allowed
+   origin, permits `POST, OPTIONS` and `content-type, apikey`, and uses `Vary: Origin`.
+   The browser sends that origin automatically. A repository path cannot be a
+   CORS boundary; other repositories on the same Pages hostname share the origin.
+   If it is not already allowed, the owner must separately approve the Supabase
+   secret update and ensure both deployed functions use the updated setting.
+   This preparation does not edit secrets or deploy functions. Keep public
+   invocation/key checks, restricted PostgreSQL roles and Data API settings intact.
+
+#### Approved release process
+
+- [ ] Review and approve the frontend change; commit/push/merge PR #1 separately.
+- [ ] Confirm the two public repository variables and main-only environment rules.
+- [ ] Confirm exact hosted CORS origin and deployed backend are ready.
+- [ ] Open **Actions → Deploy frontend to GitHub Pages → Run workflow**, select
+      `main`, and explicitly approve any environment deployment prompt.
+- [ ] Check automated tests, lint, Deno checks/tests and TypeScript/Vite build pass.
+- [ ] Check the production artifact verification passes. It requires the Supabase
+      chunk, rejects mock fixture data and environment/local files, and verifies
+      HTML/CSS asset paths under `/prebi-feedback-challenge/`.
+- [ ] Visit the target URL; verify HTTPS, logo/fonts/styles and mobile layout.
+- [ ] Confirm a browser start request targets `/functions/v1/start-round` and
+      its OPTIONS/POST succeeds from the Pages origin. Inspect no secret values
+      in shared screenshots or logs.
+- [ ] Run a real-vote/replay smoke test only after separate approval; it creates
+      persistent anonymous data. Do not run the manual script as part of CI.
+
+The workflow uploads **only `dist/`** and deploys that same checked artifact. It
+does not upload repository files, `.env.local`, server source, or credentials.
+Existing environment ignores remain in place; do not force-add local env files.
+The default offline `npm run test:production-bundle` builds using fake public
+configuration. In CI, `npm run test:production-bundle -- --check-only` instead
+checks the already-built real release artifact without overwriting its settings.
+The workflow has not yet been exercised on GitHub; environment policies and
+actual Pages/CORS behavior still need the approved release checks above.
 
 ## 5. Local tests without any project credentials
 

@@ -39,7 +39,18 @@ Die bereitgestellten Fälle sind weiterhin ausschließlich fiktiv.
 
 Setup, nicht-destruktive Migration, erforderliche Server-Secrets, lokale Tests
 und Deployment-Schritte stehen in [SUPABASE_SETUP.md](./SUPABASE_SETUP.md).
-Es wurde kein gehostetes Projekt verändert und kein Deployment ausgeführt.
+Die Projektverantwortlichen haben die gehostete Abstimmung und idempotente
+Wiederholung geprüft; Einzelheiten stehen in der Setup-Anleitung.
+
+## GitHub Pages
+
+Der manuell gestartete Workflow [pages.yml](./.github/workflows/pages.yml) baut
+den Supabase-Modus und veröffentlicht ausschließlich `dist/`. Er läuft nur für
+`main`, nicht für Pull Requests oder den Feature-Branch. Vor dem ersten Start
+sind Pages, öffentliche Repository-Variablen und die Freigabe des Origins nötig.
+Die [Deployment-Checkliste](./SUPABASE_SETUP.md#github-pages-frontend-deployment)
+beschreibt Einrichtung, Freigaben und Prüfung. Ein Commit oder Merge allein
+startet kein Deployment.
 
 ```sh
 cp .env.example .env.local
