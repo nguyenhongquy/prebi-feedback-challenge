@@ -8,6 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "test": "vitest run",
+    "check:functions": "deno check --config supabase/functions/start-round/deno.json supabase/functions/start-round/index.ts && deno check --config supabase/functions/submit-vote/deno.json supabase/functions/submit-vote/index.ts",
+    "seed:generate": "node scripts/generate-seed.mjs",
+    "test:production-bundle": "node scripts/check-production-bundle.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -15,10 +18,12 @@
     "react-dom": "^19.3.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "deno": "^2.9.6",
     "oxlint": "^1.88.0",
     "typescript": "~6.0.3",
     "vite": "^8.3.4",

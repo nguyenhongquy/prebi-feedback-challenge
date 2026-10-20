@@ -1,9 +1,8 @@
-import type { ChallengeRound, FeedbackChoice, RoundResult, Vote } from '../types/challenge'
+import type { FeedbackChoice, RoundResult, Vote } from '../types/challenge'
 
 interface RevealScreenProps {
   onContinue: () => void
   result: RoundResult
-  round: ChallengeRound
   vote: Vote
 }
 
@@ -14,7 +13,6 @@ function labelForChoice(choice: FeedbackChoice): string {
 export function RevealScreen({
   onContinue,
   result,
-  round,
   vote,
 }: RevealScreenProps) {
   const otherPosition = result.humanFeedbackPosition === 'A' ? 'B' : 'A'
@@ -72,15 +70,15 @@ export function RevealScreen({
 
       <div className="editorial-note">
         <p className="eyebrow">Ein Gedanke zum Vergleich</p>
-        <p>{round.revealNote}</p>
+        <p>{result.revealNote}</p>
         <div className="discussion-prompt">
           <span aria-hidden="true">↗</span>
-          <p>{round.discussionPrompt}</p>
+          <p>{result.discussionPrompt}</p>
         </div>
       </div>
 
       <button className="button button-primary" onClick={onContinue} type="button">
-        Demodaten ansehen <span aria-hidden="true">→</span>
+        {result.isDemo ? 'Demodaten ansehen' : 'Ergebnisse ansehen'} <span aria-hidden="true">→</span>
       </button>
       <p className="subtle-note">Deine Präferenz ist keine richtige oder falsche Antwort.</p>
     </section>

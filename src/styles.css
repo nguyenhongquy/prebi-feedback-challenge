@@ -377,6 +377,7 @@ h3 {
   background: #fff;
   color: #702929;
   font-size: 0.9rem;
+  flex-wrap: wrap;
 }
 
 .text-button {

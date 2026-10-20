@@ -1,9 +1,10 @@
 interface WelcomeScreenProps {
   onStart: () => void
   playedRounds: number
+  isDemo?: boolean
 }
 
-export function WelcomeScreen({ onStart, playedRounds }: WelcomeScreenProps) {
+export function WelcomeScreen({ onStart, playedRounds, isDemo = true }: WelcomeScreenProps) {
   return (
     <section className="welcome-screen page-section">
       <div className="eyebrow"><span className="eyebrow-dot" /> Reflection Week · Mitmach-Experiment</div>
@@ -28,8 +29,9 @@ export function WelcomeScreen({ onStart, playedRounds }: WelcomeScreenProps) {
         <p>
           <strong>Gut zu wissen</strong>
           <br />
-          Alle Fälle sind frei erfunden. In diesem Prototyp werden nur
-          Demodaten angezeigt – es werden keine persönlichen Daten erfasst.
+          {isDemo
+            ? 'Alle Fälle sind frei erfunden. In diesem Prototyp werden nur Demodaten angezeigt – es werden keine persönlichen Daten erfasst.'
+            : 'Alle Fälle sind frei erfunden. Deine anonymen Antworten werden gespeichert und für diesen Fall zusammengezählt. Wir fragen keine Namen oder Kontaktdaten ab. Dein Fallfortschritt bleibt nur in diesem Browser-Tab.'}
         </p>
       </aside>
 

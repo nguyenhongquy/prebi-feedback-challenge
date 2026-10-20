@@ -30,6 +30,33 @@ und das Zurücksetzen des Sitzungsfortschritts.
 Zusätzliche Komponententests prüfen die Feedback-Sprunglinks, den Abstimmungs-
 und Ladezustand, die Auflösung sowie beschriftete Demo-Diagramme.
 
+## Phase 2: echte anonyme Abstimmung
+
+Der vorhandene Mock-Modus bleibt der Standard. Mit `VITE_API_MODE=supabase`
+werden stattdessen öffentliche Edge Functions verwendet; Fälle, Auflösung und
+Stimmen bleiben in der Datenbank. Der Supabase Data API bleibt deaktiviert.
+Die bereitgestellten Fälle sind weiterhin ausschließlich fiktiv.
+
+Setup, nicht-destruktive Migration, erforderliche Server-Secrets, lokale Tests
+und Deployment-Schritte stehen in [SUPABASE_SETUP.md](./SUPABASE_SETUP.md).
+Es wurde kein gehostetes Projekt verändert und kein Deployment ausgeführt.
+
+```sh
+cp .env.example .env.local
+# Für lokale Demodaten: VITE_API_MODE=mock
+# Für echte Abstimmungen: öffentliche Supabase-URL/Publishable-Key ergänzen
+npm run dev
+```
+
+`npm test` führt zusätzlich die SQL-Migration in einem isolierten PostgreSQL-
+Testsystem aus und prüft Runden, Normalisierung, Wiederholungsanfragen,
+Zugriffsrechte und den Produktionsadapter. Weitere Prüfungen:
+
+```sh
+npm run check:functions
+npm run test:production-bundle
+```
+
 ### Mobile und Tastatur manuell prüfen
 
 - Bei 375 und 390 Pixel Breite: Beide Feedback-Karten über „Zu Feedback A/B“
@@ -65,7 +92,8 @@ und Ladezustand, die Auflösung sowie beschriftete Demo-Diagramme.
   `src/assets/brand/`; zur Laufzeit werden keine externen Schriftdateien
   geladen.
 
-Die Antwortzuordnung liegt in diesem lokalen Prototyp im Mock-Adapter. Vor
-einem öffentlichen Einsatz müssen freigegebene Fälle und die Auflösung über
-einen kontrollierten Server-Endpunkt bereitgestellt werden. Das ist nicht
-Bestandteil von Phase 1.
+Im Mock-Modus liegt die Antwortzuordnung absichtlich im Browser. Im Supabase-
+Modus wird der Mock-Adapter nicht in den Produktionsbuild aufgenommen; die
+Auflösung und die manuell formulierten Hinweise kommen erst nach der
+Abstimmung vom Server. Die Einrichtung und Freigabe des Backends erfolgt
+separat nach Prüfung durch die Projektverantwortlichen.

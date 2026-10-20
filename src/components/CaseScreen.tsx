@@ -1,4 +1,3 @@
-import { syntheticCaseCount } from '../data/syntheticCases'
 import type { ChallengeRound, VoteDraft } from '../types/challenge'
 import { FeedbackCard } from './FeedbackCard'
 import { VoteForm } from './VoteForm'
@@ -6,6 +5,7 @@ import { VoteForm } from './VoteForm'
 interface CaseScreenProps {
   caseNumber: number
   isSubmitting: boolean
+  isRoundUnavailable?: boolean
   onSubmit: () => void
   onVoteChange: (vote: VoteDraft) => void
   round: ChallengeRound
@@ -15,6 +15,7 @@ interface CaseScreenProps {
 export function CaseScreen({
   caseNumber,
   isSubmitting,
+  isRoundUnavailable,
   onSubmit,
   onVoteChange,
   round,
@@ -24,7 +25,7 @@ export function CaseScreen({
     <section className="case-screen page-section">
       <div className="step-label">
         <span>DEINE RUNDE</span>
-        <span className="step-count">Fall {caseNumber} <span aria-hidden="true">/</span> {syntheticCaseCount}</span>
+        <span className="step-count">Fall {caseNumber} <span aria-hidden="true">/</span> {round.totalCases}</span>
       </div>
 
       <div className="case-intro">
@@ -61,6 +62,7 @@ export function CaseScreen({
         </div>
         <VoteForm
           isSubmitting={isSubmitting}
+          isUnavailable={isRoundUnavailable}
           onSubmit={onSubmit}
           onVoteChange={onVoteChange}
           vote={vote}

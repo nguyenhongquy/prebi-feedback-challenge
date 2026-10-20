@@ -1,0 +1,16 @@
+project_id = "prebi-feedback-challenge"
+
+[api]
+enabled = false
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[functions.start-round]
+verify_jwt = false
+entrypoint = "./functions/start-round/index.ts"
+
+[functions.submit-vote]
+verify_jwt = false
+entrypoint = "./functions/submit-vote/index.ts"
