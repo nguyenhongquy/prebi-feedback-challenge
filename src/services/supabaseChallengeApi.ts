@@ -53,7 +53,8 @@ export class SupabaseChallengeApi implements ChallengeApi {
   private async request(functionName: string, input: unknown): Promise<unknown> {
     let response: Response
     try {
-      response = await this.fetcher(`${this.endpoint}/${functionName}`, {
+      const fetcher = this.fetcher
+      response = await fetcher(`${this.endpoint}/${functionName}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', apikey: this.publishableKey },
         credentials: 'omit',

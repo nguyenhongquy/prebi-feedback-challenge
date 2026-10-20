@@ -20,6 +20,23 @@ const result = {
 const config = ['https://example.supabase.co', 'sb_publishable_test'] as const
 
 describe('Supabase production adapter', () => {
+  it.each(['default', 'injected'] as const)('calls %s fetch without an invalid receiver', async (source) => {
+    const fetcher = vi.fn<typeof fetch>(async function (this: unknown) {
+      if (this !== undefined && this !== globalThis) throw new TypeError('Illegal invocation')
+      return Response.json(round)
+    })
+    if (source === 'default') vi.stubGlobal('fetch', fetcher)
+    try {
+      const api = source === 'default'
+        ? new SupabaseChallengeApi(...config)
+        : new SupabaseChallengeApi(...config, fetcher)
+      await expect(api.startRound([])).resolves.toMatchObject({ caseId: round.caseId })
+      expect(fetcher).toHaveBeenCalledTimes(1)
+    } finally {
+      if (source === 'default') vi.unstubAllGlobals()
+    }
+  })
+
   it('calls public Edge Functions, not the Data API or a JWT authorization header', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json(round))
     const api = new SupabaseChallengeApi(...config, fetcher)
