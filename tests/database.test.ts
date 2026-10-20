@@ -22,6 +22,7 @@ type Result = {
   }
 }
 let tokenCounter = 0
+let legacyVotes: unknown[] = []
 const token = () => (++tokenCounter).toString(16).padStart(64, '0')
 
 async function start(seen: string[] = [], position = 'A', hash = token()) {
@@ -42,7 +43,14 @@ async function submit(hash: string, authorship = 'A', helpfulness = 'B', key = c
 
 beforeAll(async () => {
   await db.exec(`
-    create role anon; create role authenticated; create role service_role;
+    create role anon; create role authenticated; create role service_role bypassrls;
+    create role audit_reader;
+    create role migration_admin login inherit createrole nosuperuser nobypassrls;
+    grant anon, authenticated to migration_admin;
+    do $$ begin
+      execute format('grant create on database %I to migration_admin', current_database());
+    end $$;
+    grant usage, create on schema public to migration_admin;
     create table public.votes (
       id uuid, case_id text, human_position text, authorship_guess text,
       helpfulness_preference text, created_at timestamptz
@@ -50,9 +58,24 @@ beforeAll(async () => {
     insert into public.votes values (
       gen_random_uuid(), 'legacy-case', 'A', 'unsure', 'equal', now()
     );
+    alter table public.votes owner to migration_admin;
+    alter table public.votes enable row level security;
+    grant select on public.votes to audit_reader, service_role;
+    create policy legacy_audit_read on public.votes for select to audit_reader using (true);
   `)
+  legacyVotes = (await db.query(`
+    select id, case_id, human_position, authorship_guess, helpfulness_preference, created_at
+    from public.votes order by id
+  `)).rows
+  await db.exec('set session authorization migration_admin')
+  await db.exec(readFileSync('supabase/preflight.sql', 'utf8'))
   await db.exec(readFileSync('supabase/migrations/202610200001_private_challenge.sql', 'utf8'))
   await db.exec(readFileSync('supabase/seed.sql', 'utf8'))
+  await db.exec(`
+    create role prebi_edge_login login inherit nosuperuser nocreatedb nocreaterole nobypassrls;
+    grant prebi_edge to prebi_edge_login;
+    set session authorization postgres;
+  `)
 }, 30_000)
 
 beforeEach(async () => {
@@ -68,6 +91,10 @@ describe('versioned SQL migration and atomic voting', () => {
   it('preserves pre-existing votes and makes the fictional seed repeatable', async () => {
     const legacy = await db.query<{ count: number }>("select count(*)::int as count from public.votes where case_id = 'legacy-case'")
     expect(legacy.rows[0].count).toBe(1)
+    expect((await db.query(`
+      select id, case_id, human_position, authorship_guess, helpfulness_preference, created_at
+      from public.votes order by id
+    `)).rows).toEqual(legacyVotes)
     await db.exec(readFileSync('supabase/seed.sql', 'utf8'))
     const cases = await db.query<{ count: number }>('select count(*)::int as count from prebi_private.cases')
     expect(cases.rows[0].count).toBe(3)
@@ -178,18 +205,87 @@ describe('versioned SQL migration and atomic voting', () => {
   })
 
   it('denies browser roles and grants the Edge role only the two entry points', async () => {
-    for (const role of ['anon', 'authenticated', 'service_role', 'prebi_edge']) {
+    for (const role of ['anon', 'authenticated', 'prebi_edge', 'prebi_edge_login']) {
       await db.exec(`set role ${role}`)
-      await expect(db.query('select * from public.votes')).rejects.toThrow(/permission denied/)
-      await expect(db.query('select * from prebi_private.cases')).rejects.toThrow(/permission denied/)
-      await db.exec('reset role')
+      try {
+        for (const table of ['public.votes', 'prebi_private.cases', 'prebi_private.rounds']) {
+          await expect(db.query(`select * from ${table}`)).rejects.toThrow(/permission denied/)
+          await expect(db.query(`insert into ${table} default values`)).rejects.toThrow(/permission denied/)
+        }
+        await expect(db.query("select prebi_private.case_results('seminar-gespraech')")).rejects.toThrow(/permission denied/)
+        if (role === 'anon' || role === 'authenticated') {
+          await expect(start()).rejects.toThrow(/permission denied/)
+          await expect(submit(token())).rejects.toThrow(/permission denied/)
+        } else {
+          const round = await start()
+          expect(round.result.caseId).toBeTruthy()
+          expect((await submit(round.hash)).error).toBeUndefined()
+        }
+      } finally {
+        await db.exec('reset role')
+      }
     }
-    await db.exec('set role prebi_edge')
-    await expect(db.query("select prebi_private.case_results('seminar-gespraech')")).rejects.toThrow(/permission denied/)
-    const round = await start()
-    expect(round.result.caseId).toBeTruthy()
-    expect((await submit(round.hash)).results.totalVotes).toBe(1)
-    await db.exec('reset role')
+  })
+
+  it('preserves the existing votes owner, administrative grants and unrelated policies', async () => {
+    const { rows } = await db.query<{ owner: string; service_read: boolean; audit_read: boolean }>(`
+      select pg_get_userbyid(relowner) as owner,
+        has_table_privilege('service_role', oid, 'select') as service_read,
+        has_table_privilege('audit_reader', oid, 'select') as audit_read
+      from pg_class where oid = 'public.votes'::regclass
+    `)
+    expect(rows[0]).toEqual({ owner: 'migration_admin', service_read: true, audit_read: true })
+    const policies = await db.query("select 1 from pg_policies where policyname = 'legacy_audit_read'")
+    expect(policies.rows).toHaveLength(1)
+  })
+
+  it('sets definer ownership, fixed search paths and RLS without browser EXECUTE', async () => {
+    const routines = await db.query<{ name: string; owner: string; definer: boolean; config: string[]; anon: boolean; authenticated: boolean }>(`
+      select p.proname as name, pg_get_userbyid(p.proowner) as owner,
+        p.prosecdef as definer, p.proconfig as config,
+        has_function_privilege('anon', p.oid, 'execute') as anon,
+        has_function_privilege('authenticated', p.oid, 'execute') as authenticated
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'prebi_private'
+    `)
+    expect(routines.rows).toHaveLength(4)
+    for (const row of routines.rows) {
+      expect(row.owner).toBe('prebi_owner')
+      expect(row.config).toEqual(['search_path=pg_catalog'])
+      expect(row.definer).toBe(['start_round', 'submit_vote'].includes(row.name))
+      expect(row.anon).toBe(false)
+      expect(row.authenticated).toBe(false)
+    }
+    const tables = await db.query<{ owner: string; rls: boolean; force: boolean }>(`
+      select pg_get_userbyid(relowner) as owner, relrowsecurity as rls, relforcerowsecurity as force
+      from pg_class where relnamespace = 'prebi_private'::regnamespace and relkind = 'r'
+    `)
+    expect(tables.rows).toHaveLength(3)
+    for (const table of tables.rows) {
+      expect(table).toEqual({ owner: 'prebi_owner', rls: true, force: false })
+    }
+  })
+
+  it('runs the rollback-only hosted role probe with the provisioned login', async () => {
+    await db.exec('set session authorization migration_admin')
+    try {
+      await db.exec(readFileSync('supabase/verify.sql', 'utf8'))
+      await db.exec(readFileSync('supabase/verify-execution.sql', 'utf8'))
+    } finally {
+      await db.exec('rollback; set session authorization postgres')
+    }
+    expect((await db.query('select * from public.votes where round_id is not null')).rows).toHaveLength(0)
+  })
+
+  it('refuses existing role names before changing objects or permissions', async () => {
+    try {
+      await expect(db.exec(readFileSync('supabase/migrations/202610200001_private_challenge.sql', 'utf8')))
+        .rejects.toThrow(/prebi roles already exist/)
+    } finally {
+      await db.exec('rollback')
+    }
+    expect((await db.query('select * from public.votes')).rows).toHaveLength(1)
+    expect((await db.query('select * from prebi_private.cases')).rows).toHaveLength(3)
   })
 })
 

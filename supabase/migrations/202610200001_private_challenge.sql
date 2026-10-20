@@ -3,12 +3,11 @@ begin;
 
 do $$
 begin
-  if not exists (select 1 from pg_roles where rolname = 'prebi_owner') then
-    create role prebi_owner nologin nosuperuser nocreatedb nocreaterole noinherit nobypassrls;
+  if exists (select 1 from pg_roles where rolname in ('prebi_owner', 'prebi_edge', 'prebi_edge_login')) then
+    raise exception 'prebi roles already exist; review their attributes, memberships and privileges before migrating';
   end if;
-  if not exists (select 1 from pg_roles where rolname = 'prebi_edge') then
-    create role prebi_edge nologin nosuperuser nocreatedb nocreaterole noinherit nobypassrls;
-  end if;
+  create role prebi_owner nologin nosuperuser nocreatedb nocreaterole noinherit nobypassrls;
+  create role prebi_edge nologin nosuperuser nocreatedb nocreaterole noinherit nobypassrls;
 end $$;
 
 -- Supabase's postgres administrator is not a superuser; ownership transfer needs membership.
@@ -84,7 +83,8 @@ create unique index prebi_votes_round_unique on public.votes(round_id);
 create unique index prebi_votes_idempotency_unique on public.votes(idempotency_key);
 create index prebi_votes_case_idx on public.votes(case_id);
 alter table public.votes enable row level security;
-revoke all on public.votes from public, anon, authenticated, service_role, prebi_edge;
+-- Preserve unrelated administrative integrations, including existing service_role grants.
+revoke all on public.votes from public, anon, authenticated, prebi_edge;
 grant usage on schema public to prebi_owner;
 grant select, insert on public.votes to prebi_owner;
 create policy prebi_owner_read on public.votes for select to prebi_owner using (true);
