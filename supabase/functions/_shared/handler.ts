@@ -1,3 +1,5 @@
+import { logDatabaseFailure } from './databaseDiagnostics.ts'
+
 export type Action = 'start' | 'submit'
 
 export interface VoteInput {
@@ -176,8 +178,7 @@ export function createHandler(action: Action, options: HandlerOptions) {
         revealNote: result.revealNote, discussionPrompt: result.discussionPrompt,
       })
     } catch {
-      // Never log connection strings, round tokens, request bodies, or raw database errors.
-      console.error(`prebi ${action}: database operation unavailable`)
+      logDatabaseFailure(action)
       return fail('BACKEND_UNAVAILABLE', 'Die Abstimmung ist gerade nicht erreichbar. Bitte versuche es erneut. Es werden keine Demodaten eingesetzt.', 503)
     }
   }

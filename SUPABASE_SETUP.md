@@ -2,9 +2,11 @@
 
 ## Status and approval boundary
 
-The repository contains deployable source, **not an applied or deployed backend**.
-No hosted database has been contacted, no credentials have been read, no existing
-votes have been changed, and GitHub Pages deployment is not configured here.
+The project owner reported successful hosted Edge Function integration tests on
+2026-10-20 (see the recorded results below). This cleanup has not been deployed
+or independently tested against that project by the assistant. No credentials
+were accessed or hosted data/settings changed during cleanup. GitHub Pages
+deployment is not configured here.
 
 Before executing any hosted step below, the project owner must review and approve
 it. Keep the Data API and automatic table exposure **disabled**. Do not run
@@ -230,12 +232,29 @@ administrator password or enable the Data API as a workaround.
 
 ## 3. Configure server secrets and deploy functions (project owner)
 
+### Production connection and error handling
+
+The adapter removes only `sslmode`, `sslrootcert`, `sslcert` and `sslkey` URL query
+parameters before passing the URL to Postgres.js 3.4.7. That driver may forward
+libpq certificate options as PostgreSQL startup settings rather than use them as
+certificate files. Host, port, encoded credentials, database and other connection
+parameters are preserved; explicit TLS options supply CA trust and verification.
+The earlier `XX000` alone did not establish a root cause.
+
+Start requests execute the application routine directly, without a connection
+probe or stage logging. Failures emit only a fixed message:
+`prebi start: database operation unavailable` (or `submit` / `initialization`).
+Raw errors, categories, SQLSTATEs, stack traces, SQL, credentials, tokens,
+certificates and request/response bodies are not logged. The existing HTTP 503
+response remains unchanged.
+
 Copy [the server env example](./supabase/functions/.env.example) to
 `supabase/functions/.env.local` (git-ignored). Set:
 
 | Secret | Value |
 |---|---|
 | `PREBI_DATABASE_URL` | Restricted-login transaction pooler URL; database credential, server-only |
+| `PREBI_DATABASE_CA_CERT` | Optional PEM CA certificate contents, such as the official Supabase `prod-ca-2021.crt`; server-only, not a filename |
 | `PREBI_PUBLISHABLE_KEY` | Public `sb_publishable_…` project key; matches browser configuration |
 | `PREBI_ALLOWED_ORIGINS` | Comma-separated exact origins, no paths or trailing slash |
 
@@ -243,6 +262,29 @@ For example, origins can include `http://localhost:5173`,
 `http://127.0.0.1:5173`, and `https://nguyenhongquy.github.io`. The repository path
 is **not** part of an Origin; CORS cannot distinguish repositories on the same
 GitHub Pages host. Remove local origins from the hosted allowlist if not needed.
+
+If the Edge runtime does not trust the pooler's certificate chain, download the
+official CA certificate from your Supabase project's SSL configuration using a
+trusted source and set `PREBI_DATABASE_CA_CERT` to its complete PEM contents,
+including the BEGIN/END CERTIFICATE lines and actual newline characters. Do not
+use literal `\n` sequences or a filesystem path. In the Dashboard secret editor,
+paste the multiline PEM value directly. For the CLI env-file workflow below,
+use a quoted multiline value in the ignored server env file.
+
+With this secret, Postgres.js receives `{ ca, rejectUnauthorized: true }`.
+Its normal hostname verification remains enabled; no custom identity-check
+callback or verification bypass is installed. Without the secret, hosted
+connections retain `verify-full` with the runtime trust store. Invalid/untrusted
+certificates fail closed; there is no insecure fallback. The existing explicit
+local-host allowlist retains non-TLS local development behavior. Never place this
+setting in a `VITE_` variable or commit project credentials/connection URLs.
+After separate approval, updating server secrets and redeploying both functions
+is required for a hosted code change; no deployment is part of this cleanup.
+`npm run test:functions` checks TLS option construction with the pinned driver,
+including that URL SSL options cannot downgrade the explicit settings. These
+tests do not open a database connection or prove a TLS handshake. After approval,
+validate the official CA against the actual hosted pooler from the Edge runtime,
+including rejection of an untrusted CA or mismatched hostname, before launch.
 
 After you approve setting secrets and publishing the endpoints:
 
@@ -302,6 +344,7 @@ npm test
 npm run lint
 npm run build
 npm run check:functions
+npm run test:functions
 npm run test:production-bundle
 ```
 
@@ -359,7 +402,52 @@ npx supabase functions serve --env-file supabase/functions/.env.local --no-verif
 Use `VITE_SUPABASE_URL=http://127.0.0.1:54321` and the same local public key.
 The Data API remains disabled in [config.toml](./supabase/config.toml).
 
-## 6. Required staging acceptance checks
+## 6. Hosted integration results and manual testing
+
+The project owner reported these results on 2026-10-20:
+
+| Check | Reported result |
+|---|---|
+| `start-round` | HTTP 200 |
+| `submit-vote` | HTTP 200 |
+| Identical token/key/choices replay | HTTP 200, identical complete response |
+| PostgreSQL vote count | Exactly 2; owner confirmed no duplicate record |
+
+These are owner-reported hosted results, not an assistant-run test. The total
+count of 2 is the observed database state, not a requirement for future tests.
+No baseline count, connection details, credentials or tokens are recorded here.
+They do not prove concurrent independent-connection behavior or all negative
+permission/TLS checks. The cleanup version still requires a separately approved
+deployment and smoke test.
+
+The optional [manual idempotency script](./scripts/manual/test-deployed-idempotency.mjs)
+is isolated under `scripts/manual/`, outside the application and automated test
+commands. **It creates one real anonymous vote.** Do not run it as part of CI,
+builds or cleanup. After separate approval, use a trusted interactive zsh terminal:
+
+```zsh
+unsetopt XTRACE VERBOSE
+read -r -s 'PREBI_TEST_PROJECT_REF?Project reference: '; printf '\n'
+read -r -s 'PREBI_TEST_PUBLISHABLE_KEY?Publishable key: '; printf '\n'
+read -r -s 'PREBI_TEST_ORIGIN?Exact permitted origin: '; printf '\n'
+export PREBI_TEST_PROJECT_REF PREBI_TEST_PUBLISHABLE_KEY PREBI_TEST_ORIGIN
+node scripts/manual/test-deployed-idempotency.mjs
+unset PREBI_TEST_PROJECT_REF PREBI_TEST_PUBLISHABLE_KEY PREBI_TEST_ORIGIN
+```
+
+The shell prompts do not echo the values or place them in command history.
+Environment values are not a secret vault: privileged local processes can inspect
+them. The script requires `RUN`, sends one start and two identical submissions
+with a fresh UUID-v4 key, and checks both HTTP statuses, result shape and deep JSON
+equality. It does not log or save keys, tokens, bodies or results and never retries
+automatically. A timeout can leave the outcome unknown; do not rerun blindly.
+SQL saves the first complete response snapshot, so replay must return the same
+aggregate snapshot, not recomputed totals. An independently approved database
+check is needed to establish the actual stored-vote delta; browser responses alone
+do not prove the row count. Review baseline/post-test counts in a controlled
+staging window without other voting traffic; never delete existing votes to test.
+
+### Remaining staging acceptance checks
 
 After project owner approval and setup:
 

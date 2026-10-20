@@ -95,4 +95,25 @@ describe('public Edge request boundary', () => {
       expect(log).toHaveBeenCalledWith('prebi start: database operation unavailable')
     } finally { log.mockRestore() }
   })
+  it.each(['start', 'submit'] as const)('logs only a fixed production message for %s failures', async (action) => {
+    const handlers = setup()
+    const secret = 'postgres://private-user:private-password@private-host/private-db'
+    vi.mocked(handlers.database[action]).mockRejectedValue(Object.assign(new Error(secret), {
+      code: '42501', detail: secret, query: secret, parameters: [secret],
+      certificate: secret, roundToken: secret,
+    }))
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const body = action === 'start' ? { playedCaseIds: [] } : {
+        roundToken: 'b'.repeat(64), authorshipGuess: 'A',
+        helpfulnessPreference: 'B', idempotencyKey: crypto.randomUUID(),
+      }
+      const response = await handlers[action](request(body))
+      expect(response.status).toBe(503)
+      expect(await response.text()).not.toContain(secret)
+      expect(log.mock.calls).toEqual([
+        [`prebi ${action}: database operation unavailable`],
+      ])
+    } finally { log.mockRestore() }
+  })
 })

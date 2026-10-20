@@ -9,6 +9,7 @@
     "lint": "oxlint",
     "test": "vitest run",
     "check:functions": "deno check --config supabase/functions/start-round/deno.json supabase/functions/start-round/index.ts && deno check --config supabase/functions/submit-vote/deno.json supabase/functions/submit-vote/index.ts",
+    "test:functions": "deno test --config supabase/functions/start-round/deno.json --allow-env supabase/functions/_shared/database_test.ts",
     "seed:generate": "node scripts/generate-seed.mjs",
     "test:production-bundle": "node scripts/check-production-bundle.mjs",
     "preview": "vite preview"
