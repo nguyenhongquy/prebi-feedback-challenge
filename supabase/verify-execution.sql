@@ -98,19 +98,41 @@ begin
       or has_function_privilege(browser_role, 'prebi_private.submit_vote(text,text,text,uuid)', 'execute') then
       raise exception 'Unexpected browser EXECUTE grant: %', browser_role;
     end if;
-    execute format('set local role %I', browser_role);
-    begin
-      perform prebi_private.start_round(array[]::text[], repeat('0', 64), 'A');
-      raise exception 'Unexpected start_round access for %', browser_role;
-    exception when insufficient_privilege then null;
-    end;
-    begin
-      perform prebi_private.submit_vote(repeat('0', 64), 'A', 'A', gen_random_uuid());
-      raise exception 'Unexpected submit_vote access for %', browser_role;
-    exception when insufficient_privilege then null;
-    end;
-    reset role;
   end loop;
 end $$;
+
+set local role anon;
+do $$
+begin
+  if current_user <> 'anon' then raise exception 'Wrong browser role'; end if;
+  begin
+    perform prebi_private.start_round(array[]::text[], repeat('0', 64), 'A');
+    raise exception 'Unexpected start_round access for anon';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform prebi_private.submit_vote(repeat('0', 64), 'A', 'A', gen_random_uuid());
+    raise exception 'Unexpected submit_vote access for anon';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+
+set local role authenticated;
+do $$
+begin
+  if current_user <> 'authenticated' then raise exception 'Wrong browser role'; end if;
+  begin
+    perform prebi_private.start_round(array[]::text[], repeat('0', 64), 'A');
+    raise exception 'Unexpected start_round access for authenticated';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform prebi_private.submit_vote(repeat('0', 64), 'A', 'A', gen_random_uuid());
+    raise exception 'Unexpected submit_vote access for authenticated';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
 
 rollback;

@@ -267,14 +267,33 @@ describe('versioned SQL migration and atomic voting', () => {
   })
 
   it('runs the rollback-only hosted role probe with the provisioned login', async () => {
+    const probe = readFileSync('supabase/verify-execution.sql', 'utf8')
+    const blocks = [...probe.matchAll(/do \$\$([\s\S]*?)end \$\$;/gi)]
+    for (const [, block] of blocks) {
+      expect(block).not.toMatch(/\b(?:set(?:\s+local)?|reset)\s+role\b/i)
+    }
+    for (const role of ['anon', 'authenticated', 'prebi_edge_login']) {
+      expect(probe).toMatch(new RegExp(`set local role ${role};\\s*do \\$\\$`, 'i'))
+    }
+    const membershipsBefore = (await db.query(`
+      select roleid, member, grantor, admin_option, inherit_option, set_option
+      from pg_auth_members order by roleid, member, grantor
+    `)).rows
     await db.exec('set session authorization migration_admin')
     try {
       await db.exec(readFileSync('supabase/verify.sql', 'utf8'))
-      await db.exec(readFileSync('supabase/verify-execution.sql', 'utf8'))
+      await db.exec(probe)
     } finally {
       await db.exec('rollback; set session authorization postgres')
     }
     expect((await db.query('select * from public.votes where round_id is not null')).rows).toHaveLength(0)
+    expect((await db.query('select * from prebi_private.rounds')).rows).toHaveLength(0)
+    expect((await db.query('select * from prebi_private.request_budgets')).rows).toHaveLength(0)
+    expect((await db.query("select * from prebi_private.cases where id like 'privilege-probe-%'")).rows).toHaveLength(0)
+    expect((await db.query(`
+      select roleid, member, grantor, admin_option, inherit_option, set_option
+      from pg_auth_members order by roleid, member, grantor
+    `)).rows).toEqual(membershipsBefore)
   })
 
   it('refuses existing role names before changing objects or permissions', async () => {

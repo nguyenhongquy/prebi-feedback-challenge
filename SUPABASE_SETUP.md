@@ -186,6 +186,11 @@ administrator password or enable the Data API as a workaround.
    SELECT/INSERT and helper access, executes both entry points as
    `prebi_edge_login`, verifies normalized counts/replay, and rejects browser
    invocation. Everything, including the temporary grant, is rolled back.
+   All role switches are top-level `SET LOCAL ROLE` / `RESET ROLE` statements,
+   outside PL/pgSQL blocks. Separate blocks assert the current browser role and
+   require permission-denied errors from both private entry points. The staging
+   administrator must already be allowed to SET ROLE to `anon` and `authenticated`;
+   if not, stop for administrator review rather than bypassing the checks.
    With psql use `-X -v ON_ERROR_STOP=1 -f supabase/verify-execution.sql`.
    On failure issue ROLLBACK before continuing. Review triggers first: external
    effects are not rollback-safe. Run in staging, not during live voting.
