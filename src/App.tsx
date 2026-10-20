@@ -4,7 +4,7 @@ import { CompletionScreen } from './components/CompletionScreen'
 import { ResultsScreen } from './components/ResultsScreen'
 import { RevealScreen } from './components/RevealScreen'
 import { WelcomeScreen } from './components/WelcomeScreen'
-import { challengeApi } from './services/challengeApi'
+import { challengeApi, isDemoMode } from './services/challengeApi'
 import logoUrl from './assets/brand/ph-ludwigsburg-logo.png'
 import {
   loadPlayedCaseIds,
@@ -16,7 +16,7 @@ import type {
   RoundResult,
   VoteDraft,
 } from './types/challenge'
-import { isVoteComplete } from './types/challenge'
+import { ChallengeApiError, isVoteComplete } from './types/challenge'
 import './styles.css'
 
 type Screen = 'welcome' | 'case' | 'reveal' | 'results' | 'complete'
@@ -32,6 +32,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [roundUnavailable, setRoundUnavailable] = useState(false)
   const mainRef = useRef<HTMLElement>(null)
   const errorRef = useRef<HTMLDivElement>(null)
   const requestVersion = useRef(0)
@@ -70,6 +71,7 @@ function App() {
       savePlayedCaseIds(window.sessionStorage, nextPlayedCaseIds)
       setPlayedCaseIds(nextPlayedCaseIds)
       setRound(nextRound)
+      setRoundUnavailable(false)
       setVote(null)
       setResult(null)
       setScreen('case')
@@ -86,7 +88,7 @@ function App() {
   }
 
   async function submitVote() {
-    if (!round || !isVoteComplete(vote) || submissionPending.current || result) return
+    if (!round || !isVoteComplete(vote) || submissionPending.current || result || roundUnavailable) return
 
     const version = ++requestVersion.current
     submissionPending.current = true
@@ -100,6 +102,10 @@ function App() {
       setScreen('reveal')
     } catch (cause) {
       if (version !== requestVersion.current) return
+      if (cause instanceof ChallengeApiError
+        && ['ROUND_EXPIRED', 'ROUND_INVALID', 'ALREADY_SUBMITTED', 'IDEMPOTENCY_CONFLICT'].includes(cause.code)) {
+        setRoundUnavailable(true)
+      }
       setError(
         cause instanceof Error
           ? cause.message
@@ -115,6 +121,7 @@ function App() {
 
   function resetVisitor() {
     resetSessionProgress(window.sessionStorage)
+    challengeApi.reset?.()
     requestVersion.current += 1
     submissionPending.current = false
     setIsLoading(false)
@@ -124,6 +131,7 @@ function App() {
     setVote(null)
     setResult(null)
     setError(null)
+    setRoundUnavailable(false)
     setScreen('welcome')
   }
 
@@ -149,18 +157,25 @@ function App() {
         {error && (
           <div className="error-banner" ref={errorRef} role="alert" tabIndex={-1}>
             <span>{error}</span>
-            <button
-              className="text-button"
-              onClick={() => {
-                setError(null)
-                mainRef.current?.querySelector<HTMLButtonElement>(
-                  screen === 'case' ? '.vote-form button[type="submit"]' : '.button-primary',
-                )?.focus()
-              }}
-              type="button"
-            >
-              Schließen
-            </button>
+            {roundUnavailable && (
+              <button className="button button-primary" onClick={beginRound} type="button">
+                Neue Runde starten
+              </button>
+            )}
+            {!roundUnavailable && (
+              <button
+                className="text-button"
+                onClick={() => {
+                  setError(null)
+                  mainRef.current?.querySelector<HTMLButtonElement>(
+                    screen === 'case' ? '.vote-form button[type="submit"]' : '.button-primary',
+                  )?.focus()
+                }}
+                type="button"
+              >
+                Schließen
+              </button>
+            )}
           </div>
         )}
 
@@ -175,12 +190,14 @@ function App() {
               <WelcomeScreen
                 onStart={beginRound}
                 playedRounds={playedCaseIds.length}
+                isDemo={isDemoMode}
               />
             )}
             {screen === 'case' && round && (
               <CaseScreen
                 caseNumber={playedCaseIds.length}
                 isSubmitting={isSubmitting}
+                isRoundUnavailable={roundUnavailable}
                 onSubmit={submitVote}
                 round={round}
                 vote={vote}
@@ -191,7 +208,6 @@ function App() {
               <RevealScreen
                 onContinue={() => setScreen('results')}
                 result={result}
-                round={round}
                 vote={vote}
               />
             )}

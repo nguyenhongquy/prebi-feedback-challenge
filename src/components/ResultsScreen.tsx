@@ -22,16 +22,15 @@ export function ResultsScreen({
         <div>
           <h1>Wie haben andere<br /><span>den Fall erlebt?</span></h1>
           <p className="results-total">
-            <strong>{totalVotes}</strong> simulierte Antworten zu diesem Fall
+            <strong>{totalVotes}</strong> {result.isDemo ? 'simulierte Antworten' : 'anonyme Antworten'} zu diesem Fall
           </p>
         </div>
-        <span className="demo-badge">Demodaten</span>
+        {result.isDemo && <span className="demo-badge">Demodaten</span>}
       </div>
 
       {isSmallSample && (
         <p className="sample-note" role="note">
-          Kleine Stichprobe: Diese Werte sind nur zur Demonstration gedacht und
-          erlauben keine belastbaren Aussagen.
+          Kleine Stichprobe: {result.isDemo ? 'Diese Werte sind nur zur Demonstration gedacht und erlauben keine belastbaren Aussagen.' : 'Die bisherigen Antworten erlauben keine belastbaren Aussagen. Dies ist keine repräsentative Studie.'}
         </p>
       )}
 

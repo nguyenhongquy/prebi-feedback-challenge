@@ -7,6 +7,7 @@ import { ResultsBars } from './ResultsBars'
 import { ResultsScreen } from './ResultsScreen'
 import { RevealScreen } from './RevealScreen'
 import { VoteForm } from './VoteForm'
+import { WelcomeScreen } from './WelcomeScreen'
 
 const noop = () => {}
 
@@ -86,7 +87,7 @@ describe('challenge screens', () => {
     const vote: Vote = { authorshipGuess: 'unsure', helpfulnessPreference: 'B' }
     const result = await api.submitVote(round.id, vote)
     const markup = renderToStaticMarkup(
-      <RevealScreen onContinue={noop} result={result} round={round} vote={vote} />,
+      <RevealScreen onContinue={noop} result={result} vote={vote} />,
     )
     expect(markup).toContain(`Menschlich verfasst</p><h2>Feedback ${result.humanFeedbackPosition}`)
     expect(markup).toContain('Ich war unsicher')
@@ -125,5 +126,29 @@ describe('challenge screens', () => {
     )
     expect(markup).toContain('0 von 0, 0 Prozent')
     expect(markup).not.toContain('NaN')
+  })
+
+  it('uses real-voting privacy and results labels without claiming simulated data', async () => {
+    const api = new MockChallengeApi(() => 0)
+    const round = await api.startRound([])
+    if (!round) throw new Error('Expected a synthetic round')
+    const vote = { authorshipGuess: 'A', helpfulnessPreference: 'equal' } as const
+    const result = { ...await api.submitVote(round.id, vote), isDemo: false }
+    const welcome = renderToStaticMarkup(
+      <WelcomeScreen onStart={noop} playedRounds={0} isDemo={false} />,
+    )
+    const results = renderToStaticMarkup(
+      <ResultsScreen onFinish={noop} onNextRound={noop} result={result} />,
+    )
+    const reveal = renderToStaticMarkup(
+      <RevealScreen onContinue={noop} result={result} vote={vote} />,
+    )
+    expect(welcome).toContain('anonymen Antworten werden gespeichert')
+    for (const markup of [welcome, results, reveal]) {
+      expect(markup).not.toContain('Demodaten')
+      expect(markup).not.toContain('simulierte Antworten')
+    }
+    expect(results).toContain('anonyme Antworten')
+    expect(reveal).toContain('Ergebnisse ansehen')
   })
 })

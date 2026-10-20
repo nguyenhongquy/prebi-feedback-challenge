@@ -56,8 +56,7 @@ export class MockChallengeApi implements ChallengeApi {
       context: selectedCase.context,
       feedbackA,
       feedbackB,
-      revealNote: selectedCase.revealNote,
-      discussionPrompt: selectedCase.discussionPrompt,
+      totalCases: syntheticCases.length,
     }
   }
 
@@ -85,8 +84,14 @@ export class MockChallengeApi implements ChallengeApi {
       humanFeedbackPosition: record.humanFeedbackPosition,
       vote,
       results: structuredClone(reflectionCase.demoResults),
+      revealNote: reflectionCase.revealNote,
+      discussionPrompt: reflectionCase.discussionPrompt,
       isDemo: true,
     }
+  }
+
+  reset() {
+    this.rounds.clear()
   }
 }
 

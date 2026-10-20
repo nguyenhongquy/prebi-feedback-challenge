@@ -7,6 +7,7 @@ import { isVoteComplete } from '../types/challenge'
 
 interface VoteFormProps {
   isSubmitting: boolean
+  isUnavailable?: boolean
   onSubmit: () => void
   onVoteChange: (vote: VoteDraft) => void
   vote: VoteDraft | null
@@ -26,6 +27,7 @@ const helpfulnessOptions: { value: HelpfulnessPreference; label: string }[] = [
 
 export function VoteForm({
   isSubmitting,
+  isUnavailable = false,
   onSubmit,
   onVoteChange,
   vote,
@@ -46,10 +48,10 @@ export function VoteForm({
       className="vote-form"
       onSubmit={(event) => {
         event.preventDefault()
-        if (canSubmit && !isSubmitting) onSubmit()
+        if (canSubmit && !isSubmitting && !isUnavailable) onSubmit()
       }}
     >
-      <fieldset className="vote-question" disabled={isSubmitting}>
+      <fieldset className="vote-question" disabled={isSubmitting || isUnavailable}>
         <legend>
           <span className="question-number">1</span>
           Welches Feedback stammt von Lehrenden?
@@ -70,7 +72,7 @@ export function VoteForm({
         </div>
       </fieldset>
 
-      <fieldset className="vote-question" disabled={isSubmitting}>
+      <fieldset className="vote-question" disabled={isSubmitting || isUnavailable}>
         <legend>
           <span className="question-number">2</span>
           Welches Feedback findest du hilfreicher?
@@ -94,11 +96,11 @@ export function VoteForm({
       <button
         aria-busy={isSubmitting}
         className="button button-primary"
-        disabled={!canSubmit || isSubmitting}
+        disabled={!canSubmit || isSubmitting || isUnavailable}
         type="submit"
       >
-        {isSubmitting ? 'Wird ausgewertet …' : 'Antworten ansehen'}
-        {!isSubmitting && <span aria-hidden="true">→</span>}
+        {isUnavailable ? 'Runde nicht verfügbar' : isSubmitting ? 'Wird ausgewertet …' : 'Antworten ansehen'}
+        {!isSubmitting && !isUnavailable && <span aria-hidden="true">→</span>}
       </button>
       <p aria-live="polite" className="submission-status" role="status">
         {isSubmitting ? 'Deine Antworten werden ausgewertet. Bitte warte kurz.' : ''}

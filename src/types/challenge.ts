@@ -3,6 +3,16 @@ export type AuthorshipGuess = FeedbackChoice | 'unsure'
 export type HelpfulnessPreference = FeedbackChoice | 'equal'
 export type FeedbackSource = 'human' | 'ai'
 
+export class ChallengeApiError extends Error {
+  readonly code: string
+
+  constructor(code: string, message: string) {
+    super(message)
+    this.name = 'ChallengeApiError'
+    this.code = code
+  }
+}
+
 export interface SyntheticCase {
   id: string
   title: string
@@ -33,8 +43,7 @@ export interface ChallengeRound {
   context: string
   feedbackA: string[]
   feedbackB: string[]
-  revealNote: string
-  discussionPrompt: string
+  totalCases: number
 }
 
 export interface Vote {
@@ -54,7 +63,7 @@ export function isVoteComplete(vote: VoteDraft | null): vote is Vote {
   )
 }
 
-export interface DemoResults {
+export interface AggregateResults {
   authorship: {
     human: number
     ai: number
@@ -72,11 +81,14 @@ export interface RoundResult {
   roundId: string
   humanFeedbackPosition: FeedbackChoice
   vote: Vote
-  results: DemoResults
-  isDemo: true
+  results: AggregateResults
+  revealNote: string
+  discussionPrompt: string
+  isDemo: boolean
 }
 
 export interface ChallengeApi {
   startRound(playedCaseIds: string[]): Promise<ChallengeRound | null>
   submitVote(roundId: string, vote: Vote): Promise<RoundResult>
+  reset?(): void
 }
