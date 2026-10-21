@@ -616,6 +616,11 @@ h3 {
   font-weight: 700;
 }
 
+.optional-label {
+  color: #5d6f62;
+  font-weight: 400;
+}
+
 .question-number {
   display: grid;
   width: 24px;

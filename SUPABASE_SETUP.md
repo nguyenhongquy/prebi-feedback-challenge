@@ -140,6 +140,24 @@ booth-scale migration uses a transaction and ordinary indexes, not concurrent
 index creation; schedule a maintenance window if the votes table is already large.
 Do not replace or drop the old table.
 
+### Follow-up migration: optional helpfulness reasons
+
+[202610210001_helpfulness_reasons.sql](./supabase/migrations/202610210001_helpfulness_reasons.sql)
+adds a nullable `public.votes.helpfulness_reasons text[]` column restricted to
+five fixed codes (no free text), and a 5-argument `submit_vote` overload. Existing
+rows are not updated (`NULL` = not asked). The original 4-argument function is
+replaced by a wrapper that stores `NULL`, so the currently deployed Edge Function
+keeps working. Apply in this order:
+
+1. Run the migration once in the SQL editor (or `npx supabase db push`).
+2. Run [verify.sql](./supabase/verify.sql): both `submit_vote` overloads must be
+   owned by `prebi_owner` and executable only by `prebi_edge`/its login.
+3. Redeploy `start-round` and `submit-vote` (section 3).
+4. Rebuild and deploy the frontend (section 4).
+
+Old frontend + new Edge works (reasons are optional); new frontend + old Edge
+would be rejected as invalid input, so do not deploy the frontend before step 3.
+
 ## 2. Provision a restricted PostgreSQL login (project owner)
 
 After migration approval, create the separate server login using an administrator

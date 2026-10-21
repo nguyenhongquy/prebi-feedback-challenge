@@ -31,7 +31,7 @@ export function WelcomeScreen({ onStart, playedRounds, isDemo = true }: WelcomeS
           <br />
           {isDemo
             ? 'Alle Fälle sind frei erfunden. In diesem Prototyp werden nur Demodaten angezeigt – es werden keine persönlichen Daten erfasst.'
-            : 'Alle Fälle sind frei erfunden. Deine anonymen Antworten werden gespeichert und für diesen Fall zusammengezählt. Wir fragen keine Namen oder Kontaktdaten ab. Dein Fallfortschritt bleibt nur in diesem Browser-Tab.'}
+            : 'Die Fälle beruhen auf echten Reflexionen und Rückmeldungen, die anonymisiert, umformuliert und gekürzt wurden. Deine anonymen Antworten werden gespeichert und für diesen Fall zusammengezählt. Wir fragen keine Namen oder Kontaktdaten ab. Dein Fallfortschritt bleibt nur in diesem Browser-Tab.'}
         </p>
       </aside>
 

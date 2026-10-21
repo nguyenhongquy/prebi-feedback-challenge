@@ -87,6 +87,11 @@ begin
   end if;
   replay := prebi_private.submit_vote(current_setting('prebi.probe_hash'), 'B', 'A', probe_key);
   if replay is distinct from result then raise exception 'Idempotency replay failed'; end if;
+  replay := prebi_private.submit_vote(current_setting('prebi.probe_hash'), 'B', 'A', probe_key,
+    array['clear']::text[]);
+  if replay is distinct from jsonb_build_object('error', 'ALREADY_SUBMITTED') then
+    raise exception 'submit_vote with reasons failed: %', replay;
+  end if;
 end $$;
 reset role;
 
@@ -95,7 +100,8 @@ declare browser_role text;
 begin
   foreach browser_role in array array['anon', 'authenticated'] loop
     if has_function_privilege(browser_role, 'prebi_private.start_round(text[],text,text)', 'execute')
-      or has_function_privilege(browser_role, 'prebi_private.submit_vote(text,text,text,uuid)', 'execute') then
+      or has_function_privilege(browser_role, 'prebi_private.submit_vote(text,text,text,uuid)', 'execute')
+      or has_function_privilege(browser_role, 'prebi_private.submit_vote(text,text,text,uuid,text[])', 'execute') then
       raise exception 'Unexpected browser EXECUTE grant: %', browser_role;
     end if;
   end loop;
@@ -115,6 +121,11 @@ begin
     raise exception 'Unexpected submit_vote access for anon';
   exception when insufficient_privilege then null;
   end;
+  begin
+    perform prebi_private.submit_vote(repeat('0', 64), 'A', 'A', gen_random_uuid(), array[]::text[]);
+    raise exception 'Unexpected submit_vote reasons access for anon';
+  exception when insufficient_privilege then null;
+  end;
 end $$;
 reset role;
 
@@ -130,6 +141,11 @@ begin
   begin
     perform prebi_private.submit_vote(repeat('0', 64), 'A', 'A', gen_random_uuid());
     raise exception 'Unexpected submit_vote access for authenticated';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform prebi_private.submit_vote(repeat('0', 64), 'A', 'A', gen_random_uuid(), array[]::text[]);
+    raise exception 'Unexpected submit_vote reasons access for authenticated';
   exception when insufficient_privilege then null;
   end;
 end $$;

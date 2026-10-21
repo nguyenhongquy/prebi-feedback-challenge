@@ -1,7 +1,7 @@
 import type {
   AggregateResults, ChallengeApi, ChallengeRound, RoundResult, Vote,
 } from '../types/challenge'
-import { ChallengeApiError } from '../types/challenge'
+import { ChallengeApiError, normalizeReasons } from '../types/challenge'
 
 function object(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -105,26 +105,35 @@ export class SupabaseChallengeApi implements ChallengeApi {
 
   async submitVote(roundId: string, vote: Vote): Promise<RoundResult> {
     let submission = this.submissions.get(roundId)
+    const reasons = normalizeReasons(vote.helpfulnessReasons)
+    const normalized: Vote = { ...vote, helpfulnessReasons: reasons }
     if (!submission) {
-      submission = { key: crypto.randomUUID(), vote: { ...vote } }
+      submission = { key: crypto.randomUUID(), vote: normalized }
       this.submissions.set(roundId, submission)
     }
     if (vote.authorshipGuess !== submission.vote.authorshipGuess
-      || vote.helpfulnessPreference !== submission.vote.helpfulnessPreference) {
+      || vote.helpfulnessPreference !== submission.vote.helpfulnessPreference
+      || reasons.join() !== submission.vote.helpfulnessReasons?.join()) {
       throw new ChallengeApiError('RETRY_CHOICES', 'Die vorherige Anfrage könnte bereits gespeichert sein. Bitte wiederhole sie mit denselben Antworten.')
     }
     const payload = await this.request('submit-vote', {
-      roundToken: roundId, ...submission.vote, idempotencyKey: submission.key,
+      roundToken: roundId,
+      authorshipGuess: submission.vote.authorshipGuess,
+      helpfulnessPreference: submission.vote.helpfulnessPreference,
+      helpfulnessReasons: reasons,
+      idempotencyKey: submission.key,
     })
     if (!object(payload) || (payload.humanFeedbackPosition !== 'A' && payload.humanFeedbackPosition !== 'B')
       || payload.isDemo !== false || !object(payload.vote)
       || payload.vote.authorshipGuess !== vote.authorshipGuess
       || payload.vote.helpfulnessPreference !== vote.helpfulnessPreference
+      || !Array.isArray(payload.vote.helpfulnessReasons)
+      || payload.vote.helpfulnessReasons.join() !== reasons.join()
       || !aggregates(payload.results)
       || typeof payload.revealNote !== 'string' || typeof payload.discussionPrompt !== 'string') return invalidResponse()
     return {
       roundId, humanFeedbackPosition: payload.humanFeedbackPosition,
-      vote: { ...vote }, results: payload.results, isDemo: false,
+      vote: normalized, results: payload.results, isDemo: false,
       revealNote: payload.revealNote, discussionPrompt: payload.discussionPrompt,
     }
   }

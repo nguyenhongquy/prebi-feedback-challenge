@@ -46,7 +46,7 @@ describe('MockChallengeApi', () => {
     )
     const result = await api.submitVote(round.id, sampleVote)
     expect(result.humanFeedbackPosition).toBe('A')
-    expect(result.vote).toEqual(sampleVote)
+    expect(result.vote).toEqual({ ...sampleVote, helpfulnessReasons: [] })
     expect(result.results.totalVotes).toBe(27)
     expect(result.isDemo).toBe(true)
   })
