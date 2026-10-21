@@ -2,7 +2,10 @@ import { logDatabaseFailure } from './databaseDiagnostics.ts'
 
 export type Action = 'start' | 'submit'
 
-export const helpfulnessReasonCodes = ['concrete', 'personal', 'precise', 'clear', 'encouraging'] as const
+export const helpfulnessReasonCodes = [
+  'concrete', 'personal', 'precise', 'clear', 'encouraging', 'honest', 'concise',
+] as const
+export const maxHelpfulnessReasons = 3
 export type HelpfulnessReason = typeof helpfulnessReasonCodes[number]
 
 export interface VoteInput {
@@ -42,11 +45,10 @@ function exactKeys(value: Record<string, unknown>, keys: string[]) {
   return Object.keys(value).length === keys.length && keys.every((key) => key in value)
 }
 
-function reasonList(value: unknown, preference: unknown): HelpfulnessReason[] | undefined {
-  if (!Array.isArray(value) || value.length > helpfulnessReasonCodes.length
+function reasonList(value: unknown): HelpfulnessReason[] | undefined {
+  if (!Array.isArray(value) || value.length > maxHelpfulnessReasons
     || new Set(value).size !== value.length
-    || !value.every((entry) => (helpfulnessReasonCodes as readonly unknown[]).includes(entry))
-    || (value.length > 0 && preference === 'equal')) return undefined
+    || !value.every((entry) => (helpfulnessReasonCodes as readonly unknown[]).includes(entry))) return undefined
   return helpfulnessReasonCodes.filter((code) => value.includes(code))
 }
 
@@ -156,7 +158,7 @@ export function createHandler(action: Action, options: HandlerOptions) {
       } else {
         const voteKeys = ['roundToken', 'authorshipGuess', 'helpfulnessPreference', 'idempotencyKey']
         const hasReasons = 'helpfulnessReasons' in body
-        const reasons = hasReasons ? reasonList(body.helpfulnessReasons, body.helpfulnessPreference) : null
+        const reasons = hasReasons ? reasonList(body.helpfulnessReasons) : null
         if (!exactKeys(body, hasReasons ? [...voteKeys, 'helpfulnessReasons'] : voteKeys)
           || reasons === undefined
           || typeof body.roundToken !== 'string' || !/^[0-9a-f]{64}$/.test(body.roundToken)

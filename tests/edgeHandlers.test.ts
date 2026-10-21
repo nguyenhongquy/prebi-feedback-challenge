@@ -53,15 +53,11 @@ describe('public Edge request boundary', () => {
     { roundToken: 'a'.repeat(64), authorshipGuess: 'human', helpfulnessPreference: 'equal', idempotencyKey: crypto.randomUUID() },
     { roundToken: 'a'.repeat(64), authorshipGuess: 'A', helpfulnessPreference: 'equal', idempotencyKey: 'not-a-uuid' },
     ...[
-      'clear', ['free text'], ['clear', 'clear'], [null], Array(6).fill('clear'),
+      'clear', ['free text'], ['clear', 'clear'], [null], ['concrete', 'clear', 'honest', 'concise'],
     ].map((helpfulnessReasons) => ({
       roundToken: 'a'.repeat(64), authorshipGuess: 'A', helpfulnessPreference: 'B',
       helpfulnessReasons, idempotencyKey: crypto.randomUUID(),
     })),
-    {
-      roundToken: 'a'.repeat(64), authorshipGuess: 'A', helpfulnessPreference: 'equal',
-      helpfulnessReasons: ['clear'], idempotencyKey: crypto.randomUUID(),
-    },
     {
       roundToken: 'a'.repeat(64), authorshipGuess: 'A', helpfulnessPreference: 'B',
       helpfulnessReasons: [], comment: 'Freitext', idempotencyKey: crypto.randomUUID(),
@@ -75,6 +71,7 @@ describe('public Edge request boundary', () => {
     [undefined, null],
     [[], []],
     [['encouraging', 'concrete'], ['concrete', 'encouraging']],
+    [['concise', 'honest', 'personal'], ['personal', 'honest', 'concise']],
   ])('passes optional reasons %j to the database as %j', async (given, expected) => {
     const { submit, database } = setup()
     const key = crypto.randomUUID()
