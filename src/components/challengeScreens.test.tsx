@@ -38,7 +38,9 @@ describe('voting interface', () => {
     expect(markup).not.toMatch(/<button[^>]*disabled=""/)
     expect(markup).toContain('aria-describedby="vote-instructions"')
     expect(markup).toContain('die Begründung ist freiwillig')
-    expect(markup).not.toContain('helpfulness-reasons')
+    expect(markup).toContain('Was macht beide Rückmeldungen für dich hilfreich?')
+    expect(markup).toContain('benennen Schwächen ehrlich')
+    expect(markup).not.toContain('konkreter')
     expect(markup).toContain('welche Rückmeldung hilfreicher ist, entscheidest du.')
   })
 
@@ -63,10 +65,21 @@ describe('voting interface', () => {
     })
     expect(markup).toContain('Was macht Feedback B für dich hilfreicher?')
     expect(markup).toContain('optional')
-    expect(markup.match(/type="checkbox"/g)).toHaveLength(5)
+    expect(markup.match(/type="checkbox"/g)).toHaveLength(7)
+    expect(markup).toContain('bis zu 3')
     expect(markup.match(/checked=""/g)).toHaveLength(3)
+    expect(markup).not.toMatch(/<input[^>]*disabled=""[^>]*type="checkbox"/)
     expect(markup).not.toMatch(/<button[^>]*disabled=""/)
     expect(markup).not.toContain('<textarea')
+  })
+
+  it('disables further reasons once three are selected', () => {
+    const markup = renderVoteForm({
+      authorshipGuess: 'A',
+      helpfulnessPreference: 'A',
+      helpfulnessReasons: ['concrete', 'honest', 'concise'],
+    })
+    expect(markup.match(/<input[^>]*type="checkbox"/g)?.filter((input) => input.includes('disabled=""'))).toHaveLength(4)
   })
 })
 
@@ -167,7 +180,7 @@ describe('challenge screens', () => {
     }
     expect(results).toContain('anonyme Antworten')
     expect(reveal).toContain('Ergebnisse ansehen')
-    expect(reveal).not.toContain('Weil es')
+    expect(reveal).not.toContain('Deine Gründe')
     const reasoned = renderToStaticMarkup(
       <RevealScreen
         onContinue={noop}
@@ -175,6 +188,14 @@ describe('challenge screens', () => {
         vote={{ authorshipGuess: 'A', helpfulnessPreference: 'B', helpfulnessReasons: ['concrete', 'encouraging'] }}
       />,
     )
-    expect(reasoned).toContain('konkreter, ermutigender war')
+    expect(reasoned).toContain('konkreter · ermutigender')
+    const equalReasons = renderToStaticMarkup(
+      <RevealScreen
+        onContinue={noop}
+        result={result}
+        vote={{ authorshipGuess: 'A', helpfulnessPreference: 'equal', helpfulnessReasons: ['honest', 'concise'] }}
+      />,
+    )
+    expect(equalReasons).toContain('benennen Schwächen ehrlich · kurz und auf den Punkt')
   })
 })

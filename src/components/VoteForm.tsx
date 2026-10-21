@@ -4,7 +4,9 @@ import type {
   HelpfulnessReason,
   VoteDraft,
 } from '../types/challenge'
-import { helpfulnessReasonOptions, isVoteComplete, normalizeReasons } from '../types/challenge'
+import {
+  helpfulnessReasonOptions, isVoteComplete, maxHelpfulnessReasons, normalizeReasons,
+} from '../types/challenge'
 
 interface VoteFormProps {
   isSubmitting: boolean
@@ -38,11 +40,7 @@ export function VoteForm({
   }
 
   function updateHelpfulnessPreference(value: HelpfulnessPreference) {
-    onVoteChange({
-      ...vote,
-      helpfulnessPreference: value,
-      helpfulnessReasons: value === 'equal' ? [] : vote?.helpfulnessReasons,
-    })
+    onVoteChange({ ...vote, helpfulnessPreference: value })
   }
 
   function toggleReason(value: HelpfulnessReason, checked: boolean) {
@@ -55,10 +53,9 @@ export function VoteForm({
     })
   }
 
-  const preferredFeedback =
-    vote?.helpfulnessPreference === 'A' || vote?.helpfulnessPreference === 'B'
-      ? vote.helpfulnessPreference
-      : null
+  const preference = vote?.helpfulnessPreference
+  const selectedReasons = vote?.helpfulnessReasons ?? []
+  const reasonLimitReached = selectedReasons.length >= maxHelpfulnessReasons
 
   const canSubmit = isVoteComplete(vote)
 
@@ -113,26 +110,32 @@ export function VoteForm({
         </div>
       </fieldset>
 
-      {preferredFeedback && (
+      {preference && (
         <fieldset className="vote-question" disabled={isSubmitting || isUnavailable}>
           <legend>
             <span className="question-number">3</span>
-            Was macht Feedback {preferredFeedback} für dich hilfreicher?
-            <span className="optional-label"> (optional, Mehrfachauswahl)</span>
+            {preference === 'equal'
+              ? 'Was macht beide Rückmeldungen für dich hilfreich?'
+              : `Was macht Feedback ${preference} für dich hilfreicher?`}
+            <span className="optional-label"> (optional, bis zu {maxHelpfulnessReasons})</span>
           </legend>
           <div className="option-row">
-            {helpfulnessReasonOptions.map((option) => (
+            {helpfulnessReasonOptions.map((option) => {
+              const checked = selectedReasons.includes(option.value)
+              return (
               <label className="choice-option" key={option.value}>
                 <input
-                  checked={vote?.helpfulnessReasons?.includes(option.value) ?? false}
+                  checked={checked}
+                  disabled={!checked && reasonLimitReached}
                   name="helpfulness-reasons"
                   onChange={(event) => toggleReason(option.value, event.target.checked)}
                   type="checkbox"
                   value={option.value}
                 />
-                <span>{option.label}</span>
+                <span>{preference === 'equal' ? option.equalLabel : option.label}</span>
               </label>
-            ))}
+              )
+            })}
           </div>
         </fieldset>
       )}

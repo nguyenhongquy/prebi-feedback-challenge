@@ -2,16 +2,28 @@ export type FeedbackChoice = 'A' | 'B'
 export type AuthorshipGuess = FeedbackChoice | 'unsure'
 export type HelpfulnessPreference = FeedbackChoice | 'equal'
 export type FeedbackSource = 'human' | 'ai'
-export type HelpfulnessReason = 'concrete' | 'personal' | 'precise' | 'clear' | 'encouraging'
+export type HelpfulnessReason =
+  | 'concrete' | 'personal' | 'precise' | 'clear' | 'encouraging' | 'honest' | 'concise'
+
+export const maxHelpfulnessReasons = 3
 
 // Order is canonical: the backend stores and echoes reasons in this order.
-export const helpfulnessReasonOptions: { value: HelpfulnessReason; label: string }[] = [
-  { value: 'concrete', label: 'konkreter' },
-  { value: 'personal', label: 'persönlicher' },
-  { value: 'precise', label: 'fachlich genauer' },
-  { value: 'clear', label: 'klarer formuliert' },
-  { value: 'encouraging', label: 'ermutigender' },
+// `label` compares one feedback with the other; `equalLabel` describes both.
+export const helpfulnessReasonOptions: { value: HelpfulnessReason; label: string; equalLabel: string }[] = [
+  { value: 'concrete', label: 'konkreter', equalLabel: 'konkret' },
+  { value: 'personal', label: 'persönlicher', equalLabel: 'persönlich' },
+  { value: 'precise', label: 'fachlich genauer', equalLabel: 'fachlich genau' },
+  { value: 'clear', label: 'klarer formuliert', equalLabel: 'klar formuliert' },
+  { value: 'encouraging', label: 'ermutigender', equalLabel: 'ermutigend' },
+  { value: 'honest', label: 'benennt Schwächen ehrlicher', equalLabel: 'benennen Schwächen ehrlich' },
+  { value: 'concise', label: 'kürzer, auf den Punkt', equalLabel: 'kurz und auf den Punkt' },
 ]
+
+export function reasonLabels(vote: Pick<Vote, 'helpfulnessPreference' | 'helpfulnessReasons'>): string[] {
+  return helpfulnessReasonOptions
+    .filter((option) => vote.helpfulnessReasons?.includes(option.value))
+    .map((option) => vote.helpfulnessPreference === 'equal' ? option.equalLabel : option.label)
+}
 
 export function normalizeReasons(reasons: readonly HelpfulnessReason[] | undefined): HelpfulnessReason[] {
   return helpfulnessReasonOptions

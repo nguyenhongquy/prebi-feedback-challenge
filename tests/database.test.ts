@@ -81,6 +81,7 @@ beforeAll(async () => {
   await db.exec(readFileSync('supabase/preflight.sql', 'utf8'))
   await db.exec(readFileSync('supabase/migrations/202610200001_private_challenge.sql', 'utf8'))
   await db.exec(readFileSync('supabase/migrations/202610210001_helpfulness_reasons.sql', 'utf8'))
+  await db.exec(readFileSync('supabase/migrations/202610210002_more_helpfulness_reasons.sql', 'utf8'))
   await db.exec(readFileSync('supabase/seed.sql', 'utf8'))
   await db.exec(`
     create role prebi_edge_login login inherit nosuperuser nocreatedb nocreaterole nobypassrls;
@@ -223,25 +224,28 @@ describe('versioned SQL migration and atomic voting', () => {
 
     const none = await start()
     expect((await submit(none.hash, 'unsure', 'equal', crypto.randomUUID(), [])).vote?.helpfulnessReasons).toEqual([])
+    const equal = await start()
+    expect((await submit(equal.hash, 'A', 'equal', crypto.randomUUID(), ['concise', 'honest'])).vote?.helpfulnessReasons)
+      .toEqual(['honest', 'concise'])
     const old = await start()
     expect((await submit(old.hash, 'A', 'A')).vote?.helpfulnessReasons).toBeNull()
 
     const stored = await db.query<{ reasons: string[] | null }>(`
       select helpfulness_reasons as reasons from public.votes order by round_id is null, created_at
     `)
-    expect(stored.rows.map((row) => row.reasons)).toEqual([['concrete', 'encouraging'], [], null, null])
+    expect(stored.rows.map((row) => row.reasons)).toEqual([
+      ['concrete', 'encouraging'], [], ['honest', 'concise'], null, null,
+    ])
   })
 
   it.each([
-    [['free text']], [['clear', 'clear']], [[null]], [Array(6).fill('clear')],
+    [['free text']], [['clear', 'clear']], [[null]], [['concrete', 'clear', 'honest', 'concise']],
   ])('rejects invalid reasons %j without inserting a vote', async (reasons) => {
     const { hash } = await start()
     expect(await submit(hash, 'A', 'B', crypto.randomUUID(), reasons as string[])).toEqual({ error: 'INVALID_INPUT' })
-    const { hash: equalHash } = await start()
-    expect(await submit(equalHash, 'A', 'equal', crypto.randomUUID(), ['clear'])).toEqual({ error: 'INVALID_INPUT' })
     expect((await db.query('select 1 from public.votes where round_id is not null')).rows).toHaveLength(0)
     await expect(db.query(
-      "insert into public.votes(case_id, human_position, authorship_guess, helpfulness_preference, helpfulness_reasons) values ('x', 'A', 'A', 'equal', array['clear'])",
+      "insert into public.votes(case_id, human_position, authorship_guess, helpfulness_preference, helpfulness_reasons) values ('x', 'A', 'A', 'equal', array['concrete', 'clear', 'honest', 'concise'])",
     )).rejects.toThrow(/prebi_vote_helpfulness_reasons/)
   })
 

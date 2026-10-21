@@ -662,6 +662,11 @@ h3 {
   font-weight: 700;
 }
 
+.choice-option:has(input:disabled:not(:checked)) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .choice-option input {
   position: absolute;
   width: 1px;

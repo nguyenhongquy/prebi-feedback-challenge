@@ -158,6 +158,12 @@ keeps working. Apply in this order:
 Old frontend + new Edge works (reasons are optional); new frontend + old Edge
 would be rejected as invalid input, so do not deploy the frontend before step 3.
 
+[202610210002_more_helpfulness_reasons.sql](./supabase/migrations/202610210002_more_helpfulness_reasons.sql)
+adds `honest` and `concise`, limits new votes to three reasons, and allows
+reasons for `equal`. The constraint is re-added `NOT VALID`, so earlier votes
+with more reasons are kept. Apply it with the same order: migration → Edge
+Functions → frontend.
+
 ## 2. Provision a restricted PostgreSQL login (project owner)
 
 After migration approval, create the separate server login using an administrator
