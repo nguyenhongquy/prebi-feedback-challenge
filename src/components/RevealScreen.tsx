@@ -1,4 +1,5 @@
 import type { FeedbackChoice, RoundResult, Vote } from '../types/challenge'
+import { helpfulnessReasonOptions } from '../types/challenge'
 
 interface RevealScreenProps {
   onContinue: () => void
@@ -30,6 +31,9 @@ export function RevealScreen({
       : vote.helpfulnessPreference === result.humanFeedbackPosition
         ? 'Das menschliche Feedback'
         : 'Das KI-Feedback'
+  const reasonLabels = helpfulnessReasonOptions
+    .filter((option) => vote.helpfulnessReasons?.includes(option.value))
+    .map((option) => option.label)
 
   return (
     <section className="reveal-screen page-section">
@@ -66,6 +70,12 @@ export function RevealScreen({
               : `${labelForChoice(vote.helpfulnessPreference)} · ${helpfulnessSource}`}
           </strong>
         </div>
+        {reasonLabels.length > 0 && (
+          <div className="your-vote-row">
+            <span>Weil es</span>
+            <strong>{reasonLabels.join(', ')} war</strong>
+          </div>
+        )}
       </div>
 
       <div className="editorial-note">

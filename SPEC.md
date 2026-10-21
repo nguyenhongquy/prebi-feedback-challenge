@@ -15,7 +15,7 @@ The activity is a conversation starter about pedagogical feedback quality, **not
 ## 3. Visitor journey
 1. **Welcome** — “Mensch oder KI? Feedback im Vergleich”; estimated duration, privacy note, start button.
 2. **Case** — Show a short, approved reflection context. Present anonymized Feedback A and Feedback B with equivalent formatting and clearly separated paragraphs; allow scrolling and sufficient reading time.
-3. **Vote** — Ask (a) “Welches Feedback stammt von Lehrenden?” A / B / “Ich bin unsicher”; (b) “Welches Feedback ist hilfreicher?” A / B / “Beide etwa gleich”. Both answers are required to submit; uncertainty is a valid authorship response.
+3. **Vote** — Ask (a) “Welches Feedback stammt von Lehrenden?” A / B / “Ich bin unsicher”; (b) “Welches Feedback ist hilfreicher?” A / B / “Beide etwa gleich”. Both answers are required to submit; uncertainty is a valid authorship response. If A or B is preferred, an optional multi-select (c) “Was macht Feedback X für dich hilfreicher?” offers fixed reasons: konkreter, persönlicher, fachlich genauer, klarer formuliert, ermutigender. There is deliberately no free-text field, so no personal data can be entered.
 4. **Reveal** — Show which feedback was human-written, the participant’s answers, and a brief, carefully authored discussion prompt about feedback quality. Do not label a preference as right/wrong.
 5. **Aggregate results** — Two case-specific charts: authorship guesses and helpfulness preferences. Show counts, percentages, and total responses; label small samples and avoid overinterpretation.
 6. **Next action** — “Noch eine Runde?” selects an unplayed case when possible; “Fertig” ends the session. When all cases have been played, show a completion message and optional restart.
@@ -96,7 +96,7 @@ Input: optionally a list of case IDs already seen in the current session (untrus
 Output: opaque round token, case ID, approved reflection context, Feedback A and B, no authorship labels. Server securely binds token to case ID and randomized presentation order. Token must be integrity-protected or backed by short-lived server state; do not expose answer mappings in a decodable unsigned token.
 
 ### `submit-vote`
-Input: round token, authorship guess (`A`, `B`, `unsure`), helpfulness preference (`A`, `B`, `equal`), and a per-round idempotency key.
+Input: round token, authorship guess (`A`, `B`, `unsure`), helpfulness preference (`A`, `B`, `equal`), optional helpfulness reasons (a duplicate-free subset of `concrete`, `personal`, `precise`, `clear`, `encouraging`; empty when `equal`), and a per-round idempotency key. Stored reasons are `NULL` when not asked (legacy votes and older clients) and `{}` when asked but none selected.
 Server: validate inputs and token, derive the correct A/B mapping, enforce idempotency, apply reasonable abuse controls, insert one vote, then return correct authorship and aggregated counts. Do not trust client-supplied answer keys.
 
 ### `get-results` (optional)

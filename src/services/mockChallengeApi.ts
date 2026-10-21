@@ -6,6 +6,7 @@ import type {
   RoundResult,
   Vote,
 } from '../types/challenge'
+import { normalizeReasons } from '../types/challenge'
 
 interface RoundRecord {
   caseId: string
@@ -82,7 +83,7 @@ export class MockChallengeApi implements ChallengeApi {
     return {
       roundId,
       humanFeedbackPosition: record.humanFeedbackPosition,
-      vote,
+      vote: { ...vote, helpfulnessReasons: normalizeReasons(vote.helpfulnessReasons) },
       results: structuredClone(reflectionCase.demoResults),
       revealNote: reflectionCase.revealNote,
       discussionPrompt: reflectionCase.discussionPrompt,

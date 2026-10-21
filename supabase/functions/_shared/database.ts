@@ -43,7 +43,8 @@ export function createDatabase(connectionString: string, caCertificate?: string)
     async submit(input, tokenHash) {
       const rows = await sql`
         select prebi_private.submit_vote(
-          ${tokenHash}, ${input.authorshipGuess}, ${input.helpfulnessPreference}, ${input.idempotencyKey}::uuid
+          ${tokenHash}, ${input.authorshipGuess}, ${input.helpfulnessPreference}, ${input.idempotencyKey}::uuid,
+          ${input.helpfulnessReasons === null ? null : sql.array(input.helpfulnessReasons)}::text[]
         ) as result
       `
       return rows[0].result

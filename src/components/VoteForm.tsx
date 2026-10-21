@@ -1,9 +1,10 @@
 import type {
   AuthorshipGuess,
   HelpfulnessPreference,
+  HelpfulnessReason,
   VoteDraft,
 } from '../types/challenge'
-import { isVoteComplete } from '../types/challenge'
+import { helpfulnessReasonOptions, isVoteComplete, normalizeReasons } from '../types/challenge'
 
 interface VoteFormProps {
   isSubmitting: boolean
@@ -37,8 +38,27 @@ export function VoteForm({
   }
 
   function updateHelpfulnessPreference(value: HelpfulnessPreference) {
-    onVoteChange({ ...vote, helpfulnessPreference: value })
+    onVoteChange({
+      ...vote,
+      helpfulnessPreference: value,
+      helpfulnessReasons: value === 'equal' ? [] : vote?.helpfulnessReasons,
+    })
   }
+
+  function toggleReason(value: HelpfulnessReason, checked: boolean) {
+    const current = vote?.helpfulnessReasons ?? []
+    onVoteChange({
+      ...vote,
+      helpfulnessReasons: normalizeReasons(
+        checked ? [...current, value] : current.filter((reason) => reason !== value),
+      ),
+    })
+  }
+
+  const preferredFeedback =
+    vote?.helpfulnessPreference === 'A' || vote?.helpfulnessPreference === 'B'
+      ? vote.helpfulnessPreference
+      : null
 
   const canSubmit = isVoteComplete(vote)
 
@@ -93,6 +113,30 @@ export function VoteForm({
         </div>
       </fieldset>
 
+      {preferredFeedback && (
+        <fieldset className="vote-question" disabled={isSubmitting || isUnavailable}>
+          <legend>
+            <span className="question-number">3</span>
+            Was macht Feedback {preferredFeedback} für dich hilfreicher?
+            <span className="optional-label"> (optional, Mehrfachauswahl)</span>
+          </legend>
+          <div className="option-row">
+            {helpfulnessReasonOptions.map((option) => (
+              <label className="choice-option" key={option.value}>
+                <input
+                  checked={vote?.helpfulnessReasons?.includes(option.value) ?? false}
+                  name="helpfulness-reasons"
+                  onChange={(event) => toggleReason(option.value, event.target.checked)}
+                  type="checkbox"
+                  value={option.value}
+                />
+                <span>{option.label}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+
       <button
         aria-busy={isSubmitting}
         className="button button-primary"
@@ -106,7 +150,7 @@ export function VoteForm({
         {isSubmitting ? 'Deine Antworten werden ausgewertet. Bitte warte kurz.' : ''}
       </p>
       <p className="form-hint" id="vote-instructions">
-        Bitte beantworte beide Fragen. Bei der Herkunft gibt es eine Auflösung –
+        Bitte beantworte die ersten beiden Fragen; die Begründung ist freiwillig. Bei der Herkunft gibt es eine Auflösung –
         welche Rückmeldung hilfreicher ist, entscheidest du.
       </p>
     </form>

@@ -2,10 +2,15 @@ import { logDatabaseFailure } from './databaseDiagnostics.ts'
 
 export type Action = 'start' | 'submit'
 
+export const helpfulnessReasonCodes = ['concrete', 'personal', 'precise', 'clear', 'encouraging'] as const
+export type HelpfulnessReason = typeof helpfulnessReasonCodes[number]
+
 export interface VoteInput {
   roundToken: string
   authorshipGuess: 'A' | 'B' | 'unsure'
   helpfulnessPreference: 'A' | 'B' | 'equal'
+  // null: the client did not ask (older frontend); [] means asked, none selected.
+  helpfulnessReasons: HelpfulnessReason[] | null
   idempotencyKey: string
 }
 
@@ -35,6 +40,14 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function exactKeys(value: Record<string, unknown>, keys: string[]) {
   return Object.keys(value).length === keys.length && keys.every((key) => key in value)
+}
+
+function reasonList(value: unknown, preference: unknown): HelpfulnessReason[] | undefined {
+  if (!Array.isArray(value) || value.length > helpfulnessReasonCodes.length
+    || new Set(value).size !== value.length
+    || !value.every((entry) => (helpfulnessReasonCodes as readonly unknown[]).includes(entry))
+    || (value.length > 0 && preference === 'equal')) return undefined
+  return helpfulnessReasonCodes.filter((code) => value.includes(code))
 }
 
 export async function hashToken(token: string): Promise<string> {
@@ -141,7 +154,11 @@ export function createHandler(action: Action, options: HandlerOptions) {
           [...new Set(body.playedCaseIds)], await hashToken(token), humanPosition,
         )
       } else {
-        if (!exactKeys(body, ['roundToken', 'authorshipGuess', 'helpfulnessPreference', 'idempotencyKey'])
+        const voteKeys = ['roundToken', 'authorshipGuess', 'helpfulnessPreference', 'idempotencyKey']
+        const hasReasons = 'helpfulnessReasons' in body
+        const reasons = hasReasons ? reasonList(body.helpfulnessReasons, body.helpfulnessPreference) : null
+        if (!exactKeys(body, hasReasons ? [...voteKeys, 'helpfulnessReasons'] : voteKeys)
+          || reasons === undefined
           || typeof body.roundToken !== 'string' || !/^[0-9a-f]{64}$/.test(body.roundToken)
           || (body.authorshipGuess !== 'A' && body.authorshipGuess !== 'B' && body.authorshipGuess !== 'unsure')
           || (body.helpfulnessPreference !== 'A' && body.helpfulnessPreference !== 'B' && body.helpfulnessPreference !== 'equal')
@@ -153,6 +170,7 @@ export function createHandler(action: Action, options: HandlerOptions) {
           roundToken: body.roundToken,
           authorshipGuess: body.authorshipGuess,
           helpfulnessPreference: body.helpfulnessPreference,
+          helpfulnessReasons: reasons,
           idempotencyKey: body.idempotencyKey,
         }, await hashToken(body.roundToken))
       }

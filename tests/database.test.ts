@@ -7,6 +7,7 @@ import { SupabaseChallengeApi } from '../src/services/supabaseChallengeApi'
 const db = new PGlite()
 type Result = {
   error?: string
+  vote?: { authorshipGuess: string; helpfulnessPreference: string; helpfulnessReasons: string[] | null }
   complete?: boolean
   caseId: string
   title: string
@@ -33,11 +34,20 @@ async function start(seen: string[] = [], position = 'A', hash = token()) {
   return { hash, result: rows[0].result }
 }
 
-async function submit(hash: string, authorship = 'A', helpfulness = 'B', key = crypto.randomUUID()) {
-  const { rows } = await db.query<{ result: Result }>(
-    'select prebi_private.submit_vote($1, $2, $3, $4::uuid) as result',
-    [hash, authorship, helpfulness, key],
-  )
+// Omitting reasons exercises the legacy 4-argument entry point still used by older Edge deployments.
+async function submit(
+  hash: string, authorship = 'A', helpfulness = 'B', key = crypto.randomUUID(),
+  reasons?: string[] | null,
+) {
+  const { rows } = reasons === undefined
+    ? await db.query<{ result: Result }>(
+      'select prebi_private.submit_vote($1, $2, $3, $4::uuid) as result',
+      [hash, authorship, helpfulness, key],
+    )
+    : await db.query<{ result: Result }>(
+      'select prebi_private.submit_vote($1, $2, $3, $4::uuid, $5::text[]) as result',
+      [hash, authorship, helpfulness, key, reasons],
+    )
   return rows[0].result
 }
 
@@ -70,6 +80,7 @@ beforeAll(async () => {
   await db.exec('set session authorization migration_admin')
   await db.exec(readFileSync('supabase/preflight.sql', 'utf8'))
   await db.exec(readFileSync('supabase/migrations/202610200001_private_challenge.sql', 'utf8'))
+  await db.exec(readFileSync('supabase/migrations/202610210001_helpfulness_reasons.sql', 'utf8'))
   await db.exec(readFileSync('supabase/seed.sql', 'utf8'))
   await db.exec(`
     create role prebi_edge_login login inherit nosuperuser nocreatedb nocreaterole nobypassrls;
@@ -199,6 +210,41 @@ describe('versioned SQL migration and atomic voting', () => {
     expect(counts.rows[0].result.totalVotes).toBe(0)
   })
 
+  it('stores optional fixed reasons canonically and keeps legacy and old-client votes unasked', async () => {
+    const reasoned = await start()
+    const key = crypto.randomUUID()
+    const result = await submit(reasoned.hash, 'A', 'B', key, ['encouraging', 'concrete'])
+    expect(result.vote).toEqual({
+      authorshipGuess: 'A', helpfulnessPreference: 'B', helpfulnessReasons: ['concrete', 'encouraging'],
+    })
+    expect(await submit(reasoned.hash, 'A', 'B', key, ['concrete', 'encouraging'])).toEqual(result)
+    expect(await submit(reasoned.hash, 'A', 'B', key, ['concrete'])).toEqual({ error: 'ALREADY_SUBMITTED' })
+    expect(await submit(reasoned.hash, 'A', 'B', key)).toEqual({ error: 'ALREADY_SUBMITTED' })
+
+    const none = await start()
+    expect((await submit(none.hash, 'unsure', 'equal', crypto.randomUUID(), [])).vote?.helpfulnessReasons).toEqual([])
+    const old = await start()
+    expect((await submit(old.hash, 'A', 'A')).vote?.helpfulnessReasons).toBeNull()
+
+    const stored = await db.query<{ reasons: string[] | null }>(`
+      select helpfulness_reasons as reasons from public.votes order by round_id is null, created_at
+    `)
+    expect(stored.rows.map((row) => row.reasons)).toEqual([['concrete', 'encouraging'], [], null, null])
+  })
+
+  it.each([
+    [['free text']], [['clear', 'clear']], [[null]], [Array(6).fill('clear')],
+  ])('rejects invalid reasons %j without inserting a vote', async (reasons) => {
+    const { hash } = await start()
+    expect(await submit(hash, 'A', 'B', crypto.randomUUID(), reasons as string[])).toEqual({ error: 'INVALID_INPUT' })
+    const { hash: equalHash } = await start()
+    expect(await submit(equalHash, 'A', 'equal', crypto.randomUUID(), ['clear'])).toEqual({ error: 'INVALID_INPUT' })
+    expect((await db.query('select 1 from public.votes where round_id is not null')).rows).toHaveLength(0)
+    await expect(db.query(
+      "insert into public.votes(case_id, human_position, authorship_guess, helpfulness_preference, helpfulness_reasons) values ('x', 'A', 'A', 'equal', array['clear'])",
+    )).rejects.toThrow(/prebi_vote_helpfulness_reasons/)
+  })
+
   it('enforces global request budgets without collecting visitor identifiers', async () => {
     await db.exec("insert into prebi_private.request_budgets values ('start', date_trunc('minute', now()), 120)")
     expect((await start()).result).toEqual({ error: 'RATE_LIMITED' })
@@ -216,10 +262,13 @@ describe('versioned SQL migration and atomic voting', () => {
         if (role === 'anon' || role === 'authenticated') {
           await expect(start()).rejects.toThrow(/permission denied/)
           await expect(submit(token())).rejects.toThrow(/permission denied/)
+          await expect(submit(token(), 'A', 'B', crypto.randomUUID(), [])).rejects.toThrow(/permission denied/)
         } else {
           const round = await start()
           expect(round.result.caseId).toBeTruthy()
           expect((await submit(round.hash)).error).toBeUndefined()
+          const reasoned = await start()
+          expect((await submit(reasoned.hash, 'A', 'B', crypto.randomUUID(), ['clear'])).error).toBeUndefined()
         }
       } finally {
         await db.exec('reset role')
@@ -248,7 +297,7 @@ describe('versioned SQL migration and atomic voting', () => {
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'prebi_private'
     `)
-    expect(routines.rows).toHaveLength(4)
+    expect(routines.rows).toHaveLength(5)
     for (const row of routines.rows) {
       expect(row.owner).toBe('prebi_owner')
       expect(row.config).toEqual(['search_path=pg_catalog'])
@@ -313,7 +362,8 @@ describe('HTTP handlers using the real migrated PostgreSQL routines', () => {
   const database: Database = {
     async start(seen, hash, position) { return (await start(seen, position, hash)).result },
     async submit(input, hash) {
-      return submit(hash, input.authorshipGuess, input.helpfulnessPreference, input.idempotencyKey)
+      return submit(hash, input.authorshipGuess, input.helpfulnessPreference, input.idempotencyKey,
+        input.helpfulnessReasons)
     },
   }
   const options = { database, allowedOrigins: [origin], publishableKey: 'sb_publishable_test' }
@@ -369,5 +419,11 @@ describe('HTTP handlers using the real migrated PostgreSQL routines', () => {
     expect(saved.results.totalVotes).toBe(1)
     expect((await second.submitVote(two.id, vote)).results.totalVotes).toBe(2)
     expect((await first.submitVote(one.id, vote)).results.totalVotes).toBe(1)
+    const three = await first.startRound([])
+    if (!three) throw new Error('Expected a third round')
+    const reasoned = await first.submitVote(three.id, {
+      authorshipGuess: 'A', helpfulnessPreference: 'B', helpfulnessReasons: ['clear', 'personal'],
+    })
+    expect(reasoned.vote.helpfulnessReasons).toEqual(['personal', 'clear'])
   })
 })

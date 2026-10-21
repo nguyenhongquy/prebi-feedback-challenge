@@ -37,7 +37,8 @@ describe('voting interface', () => {
     })
     expect(markup).not.toMatch(/<button[^>]*disabled=""/)
     expect(markup).toContain('aria-describedby="vote-instructions"')
-    expect(markup).toContain('Bitte beantworte beide Fragen.')
+    expect(markup).toContain('die Begründung ist freiwillig')
+    expect(markup).not.toContain('helpfulness-reasons')
     expect(markup).toContain('welche Rückmeldung hilfreicher ist, entscheidest du.')
   })
 
@@ -49,9 +50,23 @@ describe('voting interface', () => {
     expect(markup).toContain('aria-busy="true"')
     expect(markup).toContain('Wird ausgewertet')
     expect(markup).toContain('role="status"')
-    expect(markup.match(/<fieldset[^>]*disabled=""/g)).toHaveLength(2)
+    expect(markup.match(/<fieldset[^>]*disabled=""/g)).toHaveLength(3)
     expect(markup.match(/checked=""/g)).toHaveLength(2)
     expect(markup).toMatch(/<button[^>]*disabled=""/)
+  })
+
+  it('offers optional reasons for the preferred feedback without requiring them', () => {
+    const markup = renderVoteForm({
+      authorshipGuess: 'A',
+      helpfulnessPreference: 'B',
+      helpfulnessReasons: ['precise'],
+    })
+    expect(markup).toContain('Was macht Feedback B für dich hilfreicher?')
+    expect(markup).toContain('optional')
+    expect(markup.match(/type="checkbox"/g)).toHaveLength(5)
+    expect(markup.match(/checked=""/g)).toHaveLength(3)
+    expect(markup).not.toMatch(/<button[^>]*disabled=""/)
+    expect(markup).not.toContain('<textarea')
   })
 })
 
@@ -144,11 +159,22 @@ describe('challenge screens', () => {
       <RevealScreen onContinue={noop} result={result} vote={vote} />,
     )
     expect(welcome).toContain('anonymen Antworten werden gespeichert')
+    expect(welcome).toContain('anonymisiert')
+    expect(welcome).not.toContain('frei erfunden')
     for (const markup of [welcome, results, reveal]) {
       expect(markup).not.toContain('Demodaten')
       expect(markup).not.toContain('simulierte Antworten')
     }
     expect(results).toContain('anonyme Antworten')
     expect(reveal).toContain('Ergebnisse ansehen')
+    expect(reveal).not.toContain('Weil es')
+    const reasoned = renderToStaticMarkup(
+      <RevealScreen
+        onContinue={noop}
+        result={result}
+        vote={{ authorshipGuess: 'A', helpfulnessPreference: 'B', helpfulnessReasons: ['concrete', 'encouraging'] }}
+      />,
+    )
+    expect(reasoned).toContain('konkreter, ermutigender war')
   })
 })

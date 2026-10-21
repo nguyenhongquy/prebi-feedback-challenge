@@ -235,7 +235,11 @@ function App() {
         />
         <div className="footer-copy">
           <span>Ein Gesprächsanstoß – kein KI-Erkennungstest.</span>
-          <span>Alle Fälle sind frei erfunden.</span>
+          <span>
+            {isDemoMode
+              ? 'Alle Fälle sind frei erfunden.'
+              : 'Fälle anonymisiert und gekürzt.'}
+          </span>
         </div>
       </footer>
     </div>

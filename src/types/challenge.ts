@@ -2,6 +2,22 @@ export type FeedbackChoice = 'A' | 'B'
 export type AuthorshipGuess = FeedbackChoice | 'unsure'
 export type HelpfulnessPreference = FeedbackChoice | 'equal'
 export type FeedbackSource = 'human' | 'ai'
+export type HelpfulnessReason = 'concrete' | 'personal' | 'precise' | 'clear' | 'encouraging'
+
+// Order is canonical: the backend stores and echoes reasons in this order.
+export const helpfulnessReasonOptions: { value: HelpfulnessReason; label: string }[] = [
+  { value: 'concrete', label: 'konkreter' },
+  { value: 'personal', label: 'persönlicher' },
+  { value: 'precise', label: 'fachlich genauer' },
+  { value: 'clear', label: 'klarer formuliert' },
+  { value: 'encouraging', label: 'ermutigender' },
+]
+
+export function normalizeReasons(reasons: readonly HelpfulnessReason[] | undefined): HelpfulnessReason[] {
+  return helpfulnessReasonOptions
+    .map((option) => option.value)
+    .filter((value) => reasons?.includes(value))
+}
 
 export class ChallengeApiError extends Error {
   readonly code: string
@@ -49,11 +65,13 @@ export interface ChallengeRound {
 export interface Vote {
   authorshipGuess: AuthorshipGuess
   helpfulnessPreference: HelpfulnessPreference
+  helpfulnessReasons?: HelpfulnessReason[]
 }
 
 export interface VoteDraft {
   authorshipGuess?: AuthorshipGuess
   helpfulnessPreference?: HelpfulnessPreference
+  helpfulnessReasons?: HelpfulnessReason[]
 }
 
 export function isVoteComplete(vote: VoteDraft | null): vote is Vote {

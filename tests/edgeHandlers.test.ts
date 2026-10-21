@@ -52,10 +52,40 @@ describe('public Edge request boundary', () => {
     {}, { roundToken: 'unsigned-answer-A' },
     { roundToken: 'a'.repeat(64), authorshipGuess: 'human', helpfulnessPreference: 'equal', idempotencyKey: crypto.randomUUID() },
     { roundToken: 'a'.repeat(64), authorshipGuess: 'A', helpfulnessPreference: 'equal', idempotencyKey: 'not-a-uuid' },
+    ...[
+      'clear', ['free text'], ['clear', 'clear'], [null], Array(6).fill('clear'),
+    ].map((helpfulnessReasons) => ({
+      roundToken: 'a'.repeat(64), authorshipGuess: 'A', helpfulnessPreference: 'B',
+      helpfulnessReasons, idempotencyKey: crypto.randomUUID(),
+    })),
+    {
+      roundToken: 'a'.repeat(64), authorshipGuess: 'A', helpfulnessPreference: 'equal',
+      helpfulnessReasons: ['clear'], idempotencyKey: crypto.randomUUID(),
+    },
+    {
+      roundToken: 'a'.repeat(64), authorshipGuess: 'A', helpfulnessPreference: 'B',
+      helpfulnessReasons: [], comment: 'Freitext', idempotencyKey: crypto.randomUUID(),
+    },
   ])('rejects invalid vote %j', async (body) => {
     const { submit, database } = setup()
     expect((await submit(request(body))).status).toBe(400)
     expect(database.submit).not.toHaveBeenCalled()
+  })
+  it.each([
+    [undefined, null],
+    [[], []],
+    [['encouraging', 'concrete'], ['concrete', 'encouraging']],
+  ])('passes optional reasons %j to the database as %j', async (given, expected) => {
+    const { submit, database } = setup()
+    const key = crypto.randomUUID()
+    await submit(request({
+      roundToken: 'c'.repeat(64), authorshipGuess: 'A', helpfulnessPreference: 'B',
+      ...(given === undefined ? {} : { helpfulnessReasons: given }), idempotencyKey: key,
+    }))
+    expect(database.submit).toHaveBeenCalledWith({
+      roundToken: 'c'.repeat(64), authorshipGuess: 'A', helpfulnessPreference: 'B',
+      helpfulnessReasons: expected, idempotencyKey: key,
+    }, expect.stringMatching(/^[0-9a-f]{64}$/))
   })
   it('strips private fields even if a database response accidentally includes them', async () => {
     const { start, database } = setup()

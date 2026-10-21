@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { Vote } from '../types/challenge'
 import { SupabaseChallengeApi } from './supabaseChallengeApi'
 
 const roundToken = 'a'.repeat(64)
@@ -9,7 +10,7 @@ const round = {
   feedbackB: ['Rückmeldung B'], totalCases: 3,
 }
 const result = {
-  humanFeedbackPosition: 'B', vote,
+  humanFeedbackPosition: 'B', vote: { ...vote, helpfulnessReasons: [] },
   revealNote: 'Ein fiktiver Vergleich.', discussionPrompt: 'Was hilft dir?',
   results: {
     totalVotes: 1,
@@ -73,6 +74,21 @@ describe('Supabase production adapter', () => {
     await expect(api.submitVote(roundToken, { ...vote, authorshipGuess: 'A' })).rejects.toMatchObject({ code: 'RETRY_CHOICES' })
     expect(fetcher).toHaveBeenCalledTimes(1)
   })
+  it('sends optional reasons in canonical order and checks the echo', async () => {
+    const reasonedVote: Vote = {
+      authorshipGuess: 'A', helpfulnessPreference: 'B', helpfulnessReasons: ['clear', 'concrete'],
+    }
+    const echoed = { ...result, vote: { ...reasonedVote, helpfulnessReasons: ['concrete', 'clear'] } }
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json(echoed))
+    const api = new SupabaseChallengeApi(...config, fetcher)
+    const saved = await api.submitVote(roundToken, reasonedVote)
+    expect(JSON.parse(String(fetcher.mock.calls[0][1]?.body))).toMatchObject({
+      helpfulnessReasons: ['concrete', 'clear'],
+    })
+    expect(saved.vote.helpfulnessReasons).toEqual(['concrete', 'clear'])
+    await expect(api.submitVote(roundToken, { ...reasonedVote, helpfulnessReasons: ['clear'] }))
+      .rejects.toMatchObject({ code: 'RETRY_CHOICES' })
+  })
   it('clears per-round keys only for the current adapter on reset', async () => {
     const firstFetch = vi.fn<typeof fetch>().mockImplementation(async () => Response.json(result))
     const secondFetch = vi.fn<typeof fetch>().mockImplementation(async () => Response.json(result))
@@ -98,6 +114,8 @@ describe('Supabase production adapter', () => {
     { ...result, humanFeedbackPosition: 'human' },
     { ...result, results: { ...result.results, totalVotes: 10 } },
     { ...result, vote: { ...vote, authorshipGuess: 'A' } },
+    { ...result, vote },
+    { ...result, vote: { ...vote, helpfulnessReasons: ['clear'] } },
   ])('rejects malformed or mismatched results', async (body) => {
     const api = new SupabaseChallengeApi(...config,
       vi.fn<typeof fetch>().mockResolvedValue(Response.json(body)))
