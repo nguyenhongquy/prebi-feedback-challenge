@@ -1,6 +1,6 @@
 import { deepStrictEqual, equal, throws } from 'node:assert/strict'
 import postgres from 'postgres'
-import { databaseConnectionOptions, databaseConnectionUrl } from './database.ts'
+import { databaseConnectionOptions, databaseConnectionUrl, textArrayLiteral } from './database.ts'
 
 const hostedUrl = 'postgres://test:placeholder@pooler.example:6543/postgres'
 const ca = 'test-only-ca-placeholder'
@@ -87,5 +87,13 @@ Deno.test('URL filtering preserves encoded credentials, host, port, database and
   } finally {
     await sql.end()
     await baseline.end()
+  }
+})
+
+Deno.test('array parameters are sent as quoted text[] literals and unsafe elements are refused', () => {
+  equal(textArrayLiteral([]), '{}')
+  equal(textArrayLiteral(['eigene-rolle', 'clear']), '{"eigene-rolle","clear"}')
+  for (const unsafe of ['a,b', 'a"b', 'a\\b', '{x}', '', 'A']) {
+    throws(() => textArrayLiteral([unsafe]))
   }
 })
